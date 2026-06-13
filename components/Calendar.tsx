@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const DAY_START = 6; // grid starts at 06:00
 const DAY_END = 23; // grid ends at 23:00
 const HOUR_H = 48; // px per hour — must match .calendar --hour-h
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // A palette to suggest colors for new people.
 const PALETTE = [
@@ -38,7 +38,7 @@ type ScheduleItem = {
 
 type ItemForm = {
   id: number | null;
-  person_id: number | null;
+  person_id: number;
   event_date: string;
   start_time: string;
   end_time: string;
@@ -54,16 +54,23 @@ type PersonForm = {
 };
 
 // ---- date helpers (local time) ------------------------------------------- //
-function mondayOf(d: Date): Date {
+function sundayOf(d: Date): Date {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = (x.getDay() + 6) % 7;
-  x.setDate(x.getDate() - dow);
+  x.setDate(x.getDate() - x.getDay()); // getDay(): 0 = Sunday
   return x;
 }
 function addDays(d: Date, n: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
+}
+// The week to show: the current Sun–Sat week, but on weekends (Sat/Sun) jump to
+// next week, since plans are usually about the upcoming weekdays.
+function defaultWeekStart(): Date {
+  const today = new Date();
+  const start = sundayOf(today);
+  const dow = today.getDay();
+  return dow === 0 || dow === 6 ? addDays(start, 7) : start;
 }
 function isoDate(d: Date): string {
   const y = d.getFullYear();
@@ -93,9 +100,10 @@ function topFor(hhmm: string): number {
 }
 
 export default function Calendar({ code, name }: { code: string; name: string }) {
-  const [weekStart, setWeekStart] = useState<Date>(() => mondayOf(new Date()));
+  const [weekStart] = useState<Date>(() => defaultWeekStart());
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [itemForm, setItemForm] = useState<ItemForm | null>(null);
   const [personForm, setPersonForm] = useState<PersonForm | null>(null);
   const [toast, setToast] = useState("");
@@ -119,14 +127,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
     else showToast("Failed to load schedule");
   }, [code, weekStart, showToast]);
 
-  useEffect(() => {
-    loadPeople();
-  }, [loadPeople]);
-
-  useEffect(() => {
-    loadItems();
-  }, [loadItems]);
-
+  useEffect(() => { loadPeople(); }, [loadPeople]);
+  useEffect(() => { loadItems(); }, [loadItems]);
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
@@ -143,28 +145,31 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const drivers = useMemo(() => people.filter((p) => p.role === "driver"), [people]);
   const kids = useMemo(() => people.filter((p) => p.role === "kid"), [people]);
 
-  const weekLabel = useMemo(() => {
-    const end = addDays(weekStart, 6);
-    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-    return `${weekStart.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(
-      undefined,
-      opts
-    )}, ${end.getFullYear()}`;
-  }, [weekStart]);
-
   const selectedPerson = useMemo(
+    () => people.find((p) => p.id === selectedId) ?? null,
+    [people, selectedId]
+  );
+  // Whose role the open item form is for (the entry's person).
+  const formPerson = useMemo(
     () => people.find((p) => p.id === itemForm?.person_id) ?? null,
     [people, itemForm]
   );
+  const formIsDriver = formPerson?.role === "driver";
+
+  const weekLabel = useMemo(() => {
+    const end = addDays(weekStart, 6);
+    const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+    const isThisWeek = sameDay(sundayOf(now), weekStart);
+    const tag = isThisWeek ? "This week" : "Week of";
+    return `${tag}: ${weekStart.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(
+      undefined,
+      opts
+    )}`;
+  }, [weekStart, now]);
 
   // ---- people management -------------------------------------------------- //
   function openNewPerson(role: Role) {
-    setPersonForm({
-      id: null,
-      name: "",
-      role,
-      color: PALETTE[people.length % PALETTE.length],
-    });
+    setPersonForm({ id: null, name: "", role, color: PALETTE[people.length % PALETTE.length] });
   }
   function openEditPerson(p: Person) {
     setPersonForm({ id: p.id, name: p.name, role: p.role, color: p.color });
@@ -172,11 +177,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
   async function submitPerson(e: React.FormEvent) {
     e.preventDefault();
     if (!personForm) return;
-    const payload = {
-      name: personForm.name.trim(),
-      role: personForm.role,
-      color: personForm.color,
-    };
+    const payload = { name: personForm.name.trim(), role: personForm.role, color: personForm.color };
     const url = personForm.id
       ? `/api/plan/${code}/people/${personForm.id}`
       : `/api/plan/${code}/people`;
@@ -189,18 +190,19 @@ export default function Calendar({ code, name }: { code: string; name: string })
       showToast((await res.json().catch(() => ({}))).error || "Could not save");
       return;
     }
+    const saved = await res.json();
     setPersonForm(null);
     showToast(personForm.id ? "Updated" : "Added");
-    loadPeople();
+    await loadPeople();
     loadItems();
+    if (!personForm.id && saved?.id) setSelectedId(saved.id); // select newly added person
   }
   async function deletePerson() {
     if (!personForm?.id) return;
     if (!confirm("Remove this person and all their schedule entries?")) return;
-    const res = await fetch(`/api/plan/${code}/people/${personForm.id}`, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/plan/${code}/people/${personForm.id}`, { method: "DELETE" });
     if (res.ok) {
+      if (selectedId === personForm.id) setSelectedId(null);
       setPersonForm(null);
       showToast("Removed");
       loadPeople();
@@ -209,15 +211,15 @@ export default function Calendar({ code, name }: { code: string; name: string })
   }
 
   // ---- schedule items ----------------------------------------------------- //
-  function openNewItem(dateStr?: string, hour?: number) {
-    if (people.length === 0) {
-      showToast("Add a driver or kid first →");
+  function addForSelected(dateStr?: string, hour?: number) {
+    if (!selectedPerson) {
+      showToast("Pick a driver or kid on the left first");
       return;
     }
     const h = hour ?? 9;
     setItemForm({
       id: null,
-      person_id: people[0].id,
+      person_id: selectedPerson.id,
       event_date: dateStr ?? isoDate(weekStart),
       start_time: `${String(h).padStart(2, "0")}:00`,
       end_time: `${String(Math.min(h + 1, 23)).padStart(2, "0")}:00`,
@@ -231,19 +233,19 @@ export default function Calendar({ code, name }: { code: string; name: string })
       person_id: it.person_id,
       event_date: it.event_date,
       start_time: it.start_time,
-      end_time: it.end_time ?? `${it.start_time}`,
+      end_time: it.end_time ?? it.start_time,
       location: it.location,
       notes: it.notes,
     });
   }
   async function submitItem(e: React.FormEvent) {
     e.preventDefault();
-    if (!itemForm || !selectedPerson) return;
+    if (!itemForm || !formPerson) return;
     const payload = {
       person_id: itemForm.person_id,
       event_date: itemForm.event_date,
       start_time: itemForm.start_time,
-      end_time: selectedPerson.role === "driver" ? itemForm.end_time : null,
+      end_time: formPerson.role === "driver" ? itemForm.end_time : null,
       location: itemForm.location.trim(),
       notes: itemForm.notes.trim(),
     };
@@ -265,9 +267,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
   }
   async function deleteItem() {
     if (!itemForm?.id) return;
-    const res = await fetch(`/api/plan/${code}/items/${itemForm.id}`, {
-      method: "DELETE",
-    });
+    const res = await fetch(`/api/plan/${code}/items/${itemForm.id}`, { method: "DELETE" });
     if (res.ok) {
       setItemForm(null);
       showToast("Deleted");
@@ -284,29 +284,37 @@ export default function Calendar({ code, name }: { code: string; name: string })
     }
   }
 
-  const isDriverSelected = selectedPerson?.role === "driver";
-
   return (
     <div className="shell">
       {/* ---------------- Sidebar ---------------- */}
       <aside className="sidebar">
-        <Link href="/" className="brand">
-          📅 The Family Plan
-        </Link>
+        <Link href="/" className="brand">📅 The Family Plan</Link>
+
+        <p className="sidebar-hint">
+          {selectedPerson
+            ? "Click a time slot to add — or click again to deselect."
+            : "Select a driver or kid, then click the calendar to add their times."}
+        </p>
 
         <PeopleGroup
           title="Drivers"
           empty="No drivers yet"
           people={drivers}
-          onAdd={() => openNewPerson("driver")}
+          selectedId={selectedId}
+          hasSelection={selectedId !== null}
+          onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           onEdit={openEditPerson}
+          onAdd={() => openNewPerson("driver")}
         />
         <PeopleGroup
           title="Kids"
           empty="No kids yet"
           people={kids}
-          onAdd={() => openNewPerson("kid")}
+          selectedId={selectedId}
+          hasSelection={selectedId !== null}
+          onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           onEdit={openEditPerson}
+          onAdd={() => openNewPerson("kid")}
         />
 
         <div className="legend">
@@ -322,23 +330,23 @@ export default function Calendar({ code, name }: { code: string; name: string })
             <h1>{name}</h1>
             <div className="code-pill" title="Share this code so others can join">
               Code: <strong>{code}</strong>
-              <button className="ghost-btn" type="button" onClick={copyLink}>
-                Copy link
-              </button>
+              <button className="ghost-btn" type="button" onClick={copyLink}>Copy link</button>
             </div>
           </div>
-          <div className="week-nav">
-            <button type="button" onClick={() => setWeekStart(addDays(weekStart, -7))}>‹</button>
-            <button type="button" onClick={() => setWeekStart(mondayOf(new Date()))}>Today</button>
-            <button type="button" onClick={() => setWeekStart(addDays(weekStart, 7))}>›</button>
-            <span id="week-label">{weekLabel}</span>
-          </div>
-          <button className="primary" type="button" onClick={() => openNewItem()}>+ Add</button>
+          <span className="week-label">{weekLabel}</span>
+          <button
+            className="primary"
+            type="button"
+            disabled={!selectedPerson}
+            onClick={() => addForSelected()}
+          >
+            {selectedPerson ? `+ Add for ${selectedPerson.name}` : "+ Add"}
+          </button>
         </header>
 
         {toast && <div className="toast">{toast}</div>}
 
-        <main className="calendar">
+        <main className={"calendar" + (selectedPerson ? " has-selection" : "")}>
           <div className="corner" />
           {days.map((d, i) => (
             <div key={`head-${i}`} className={"col-head" + (sameDay(d, now) ? " today" : "")}>
@@ -363,6 +371,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
             const nowMins = now.getHours() * 60 + now.getMinutes();
             const showNow =
               sameDay(d, now) && nowMins >= DAY_START * 60 && nowMins <= (DAY_END + 1) * 60;
+            const dim = (it: ScheduleItem) =>
+              selectedId !== null && it.person_id !== selectedId ? " dim" : "";
 
             return (
               <div key={`col-${i}`} className="day-col">
@@ -370,21 +380,17 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   <div
                     key={`c-${i}-${h}`}
                     className="hour-cell"
-                    onClick={() => openNewItem(dateStr, h)}
+                    onClick={() => addForSelected(dateStr, h)}
                   />
                 ))}
 
-                {/* Driver availability blocks */}
                 {avails.map((it) => {
                   const top = topFor(it.start_time);
-                  const height = Math.max(
-                    topFor(it.end_time as string) - top,
-                    18
-                  );
+                  const height = Math.max(topFor(it.end_time as string) - top, 18);
                   return (
                     <div
                       key={`a-${it.id}`}
-                      className="avail"
+                      className={"avail" + dim(it)}
                       style={{
                         top: `${top}px`,
                         height: `${height}px`,
@@ -402,11 +408,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   );
                 })}
 
-                {/* Kid needs — points in time */}
                 {needs.map((it) => (
                   <div
                     key={`n-${it.id}`}
-                    className="need"
+                    className={"need" + dim(it)}
                     style={{ top: `${topFor(it.start_time)}px` }}
                     onClick={(e) => { e.stopPropagation(); openEditItem(it); }}
                   >
@@ -432,10 +437,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
       {/* ---------------- Person modal ---------------- */}
       {personForm && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => { if (e.target === e.currentTarget) setPersonForm(null); }}
-        >
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setPersonForm(null); }}>
           <div className="modal">
             <h2>{personForm.id ? "Edit person" : `Add ${personForm.role}`}</h2>
             <form onSubmit={submitPerson}>
@@ -481,41 +483,18 @@ export default function Calendar({ code, name }: { code: string; name: string })
       )}
 
       {/* ---------------- Item modal ---------------- */}
-      {itemForm && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => { if (e.target === e.currentTarget) setItemForm(null); }}
-        >
+      {itemForm && formPerson && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setItemForm(null); }}>
           <div className="modal">
-            <h2>
-              {itemForm.id ? "Edit entry" : "Add entry"}
-              {selectedPerson && (
-                <span className="modal-sub">
-                  {isDriverSelected ? " — driver availability" : " — kid needs a ride"}
-                </span>
-              )}
-            </h2>
+            <h2>{itemForm.id ? "Edit entry" : "Add entry"}</h2>
+            <div className="who-chip">
+              <span className="person-dot" style={{ background: formPerson.color }} />
+              <strong>{formPerson.name}</strong>
+              <span className="who-role">
+                {formIsDriver ? "driver — availability" : "kid — needs a ride"}
+              </span>
+            </div>
             <form onSubmit={submitItem}>
-              <label>
-                Who
-                <select
-                  required
-                  value={itemForm.person_id ?? ""}
-                  onChange={(e) => setItemForm({ ...itemForm, person_id: Number(e.target.value) })}
-                >
-                  <optgroup label="Drivers">
-                    {drivers.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Kids">
-                    {kids.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </label>
-
               <label>
                 Day
                 <select
@@ -529,7 +508,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 </select>
               </label>
 
-              {isDriverSelected ? (
+              {formIsDriver ? (
                 <div className="row">
                   <label>
                     Available from
@@ -599,14 +578,20 @@ function PeopleGroup({
   title,
   empty,
   people,
-  onAdd,
+  selectedId,
+  hasSelection,
+  onSelect,
   onEdit,
+  onAdd,
 }: {
   title: string;
   empty: string;
   people: Person[];
-  onAdd: () => void;
+  selectedId: number | null;
+  hasSelection: boolean;
+  onSelect: (id: number) => void;
   onEdit: (p: Person) => void;
+  onAdd: () => void;
 }) {
   return (
     <section className="people-group">
@@ -618,14 +603,28 @@ function PeopleGroup({
         <p className="people-empty">{empty}</p>
       ) : (
         <ul className="people-list">
-          {people.map((p) => (
-            <li key={p.id}>
-              <button type="button" className="person-row" onClick={() => onEdit(p)}>
-                <span className="person-dot" style={{ background: p.color }} />
-                <span className="person-name">{p.name}</span>
-              </button>
-            </li>
-          ))}
+          {people.map((p) => {
+            const selected = p.id === selectedId;
+            const cls =
+              "person-item" + (selected ? " selected" : "") +
+              (hasSelection && !selected ? " dim" : "");
+            return (
+              <li key={p.id} className={cls}>
+                <button type="button" className="person-select" onClick={() => onSelect(p.id)}>
+                  <span className="person-dot" style={{ background: p.color }} />
+                  <span className="person-name">{p.name}</span>
+                </button>
+                <button
+                  type="button"
+                  className="person-edit"
+                  title="Edit"
+                  onClick={() => onEdit(p)}
+                >
+                  ✎
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

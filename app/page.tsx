@@ -45,13 +45,13 @@ export default function Home() {
 
   return (
     <main className="landing-card">
-      <h1>📅 The Family Plan</h1>
-      <p className="subtitle">A shared weekly calendar for you and yours.</p>
+      <h1>The Family Plan</h1>
+      <p className="subtitle">A logistics manager for busy families.</p>
 
       {error && <div className="error">{error}</div>}
 
       <section className="panel">
-        <h2>Join a plan</h2>
+        <h2>Join a family</h2>
         <p>Enter the access code someone shared with you.</p>
         <form onSubmit={join} className="inline-form">
           <input
@@ -74,14 +74,14 @@ export default function Home() {
       </div>
 
       <section className="panel">
-        <h2>Create a new plan</h2>
+        <h2>Create a new family</h2>
         <p>Start a fresh calendar and get a code to share.</p>
         <form onSubmit={create} className="inline-form">
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Plan name (e.g. The Smiths)"
+            placeholder="Family name (e.g. The Smiths)"
             maxLength={60}
           />
           <button type="submit" className="primary" disabled={busy}>

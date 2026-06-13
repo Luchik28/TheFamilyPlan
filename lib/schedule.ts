@@ -20,11 +20,11 @@ function toMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
-// Monday..Sunday (inclusive) of the week containing `weekParam` (or today),
+// Sunday..Saturday (inclusive) of the week containing `weekParam` (or today),
 // as YYYY-MM-DD strings. UTC math keeps the range stable across timezones.
 export function weekRange(weekParam: string | null): {
-  monday: string;
-  sunday: string;
+  start: string;
+  end: string;
 } {
   const ref =
     weekParam && DATE_RE.test(weekParam)
@@ -33,12 +33,11 @@ export function weekRange(weekParam: string | null): {
   const d = new Date(
     Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate())
   );
-  const dow = (d.getUTCDay() + 6) % 7; // 0 = Monday
-  d.setUTCDate(d.getUTCDate() - dow);
-  const monday = d.toISOString().slice(0, 10);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay()); // back up to Sunday (0)
+  const start = d.toISOString().slice(0, 10);
   d.setUTCDate(d.getUTCDate() + 6);
-  const sunday = d.toISOString().slice(0, 10);
-  return { monday, sunday };
+  const end = d.toISOString().slice(0, 10);
+  return { start, end };
 }
 
 export type PersonInput = { name?: string; role?: string; color?: string };

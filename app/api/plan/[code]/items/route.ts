@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: Params) {
     if (!plan) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     const week = new URL(req.url).searchParams.get("week");
-    const { monday, sunday } = weekRange(week);
+    const { start, end } = weekRange(week);
 
     const { rows } = await sql<ScheduleItemWithPerson>`
       SELECT
@@ -32,13 +32,13 @@ export async function GET(req: Request, { params }: Params) {
         p.color AS person_color
       FROM schedule_items i
       JOIN people p ON p.id = i.person_id
-      WHERE i.plan_id = ${plan.id} AND i.event_date BETWEEN ${monday} AND ${sunday}
+      WHERE i.plan_id = ${plan.id} AND i.event_date BETWEEN ${start} AND ${end}
       ORDER BY i.event_date, i.start_time
     `;
 
     return NextResponse.json({
       plan: { code: plan.code, name: plan.name },
-      week_start: monday,
+      week_start: start,
       items: rows,
     });
   } catch (err) {
