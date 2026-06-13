@@ -184,8 +184,13 @@ input:focus, select:focus, textarea:focus {
 }
 
 .day-col { position: relative; border-left: 1px solid var(--line); }
-.hour-cell { height: var(--hour-h); border-bottom: 1px solid var(--line); cursor: pointer; }
-.hour-cell:hover { background: rgba(79,124,255,.05); }
+.hour-cell { position: relative; height: var(--hour-h); border-bottom: 1px solid var(--line); cursor: pointer; }
+.hour-cell:hover { background: rgba(0, 0, 0, 0.05); }
+.kid-mode .hour-cell:hover { background: transparent; }
+.kid-mode .hour-cell:hover::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 2px;
+  background: rgba(79,124,255,.55); top: var(--hover-y, 50%); pointer-events: none;
+}
 
 /* Driver availability — a translucent block spanning a time range. */
 .avail {

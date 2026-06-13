@@ -346,7 +346,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
         {toast && <div className="toast">{toast}</div>}
 
-        <main className={"calendar" + (selectedPerson ? " has-selection" : "")}>
+        <main className={"calendar" + (selectedPerson ? " has-selection" : "") + (selectedPerson?.role === "kid" ? " kid-mode" : "")}>
           <div className="corner" />
           {days.map((d, i) => (
             <div key={`head-${i}`} className={"col-head" + (sameDay(d, now) ? " today" : "")}>
@@ -381,6 +381,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     key={`c-${i}-${h}`}
                     className="hour-cell"
                     onClick={() => addForSelected(dateStr, h)}
+                    onMouseMove={(e) => {
+                      const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                      e.currentTarget.style.setProperty("--hover-y", `${y}px`);
+                    }}
                   />
                 ))}
 
