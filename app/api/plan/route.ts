@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureSchema, getPlanByCode, sql } from "@/lib/db";
-import { generateCode } from "@/lib/events";
+import { generateCode } from "@/lib/schedule";
 
 export const runtime = "nodejs";
 

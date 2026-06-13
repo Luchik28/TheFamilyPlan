@@ -81,6 +81,49 @@ input:focus, select:focus, textarea:focus {
   padding: 10px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px;
 }
 
+/* ---------------- Shell + sidebar ---------------- */
+.shell { display: flex; min-height: 100vh; }
+.main-area { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.sidebar {
+  width: 248px;
+  flex-shrink: 0;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+}
+.brand { font-size: 16px; font-weight: 700; text-decoration: none; color: var(--ink); }
+
+.people-group {}
+.people-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.people-head h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.people-empty { margin: 0; font-size: 13px; color: var(--muted); font-style: italic; }
+.people-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.person-row {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; text-align: left; border: none; background: transparent;
+  padding: 7px 8px; border-radius: 8px; font-size: 14px;
+}
+.person-row:hover { background: #f0f3fb; }
+.person-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.legend { margin-top: auto; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.legend > div { display: flex; align-items: center; gap: 8px; }
+.legend-swatch { width: 16px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.legend-swatch.block { background: #4f7cff22; border: 1px solid #4f7cff; }
+.legend-swatch.point { height: 0; border: none; position: relative; }
+.legend-swatch.point::before {
+  content: ""; position: absolute; left: 0; top: 4px; width: 16px; height: 2px; background: var(--accent);
+}
+.legend-swatch.point::after {
+  content: ""; position: absolute; left: -1px; top: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+}
+
 /* ---------------- Top bar ---------------- */
 .topbar {
   display: flex; align-items: center; gap: 20px;
@@ -130,16 +173,36 @@ input:focus, select:focus, textarea:focus {
 .hour-cell { height: var(--hour-h); border-bottom: 1px solid var(--line); cursor: pointer; }
 .hour-cell:hover { background: rgba(79,124,255,.05); }
 
-.event {
+/* Driver availability — a translucent block spanning a time range. */
+.avail {
   position: absolute; left: 3px; right: 3px;
-  border-radius: 6px; padding: 3px 6px; font-size: 12px; color: #fff;
+  border-radius: 6px; padding: 3px 7px; font-size: 12px;
   overflow: hidden; cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,.18);
-  border-left: 3px solid rgba(0,0,0,.25);
+  border: 1px solid; border-left-width: 3px;
 }
-.event .ev-title { font-weight: 600; line-height: 1.2; }
-.event .ev-time { font-size: 11px; opacity: .9; }
-.event .ev-person { font-size: 11px; opacity: .9; font-style: italic; }
+.avail:hover { filter: brightness(0.97); }
+.avail .ev-title { font-weight: 700; line-height: 1.2; }
+.avail .ev-time { font-size: 11px; opacity: .85; }
+
+/* Kid "need" — a point in time: a line + dot + label pill. */
+.need {
+  position: absolute; left: 0; right: 0; height: 0;
+  z-index: 4; cursor: pointer; display: flex; align-items: center;
+}
+.need-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex-shrink: 0; margin-left: -1px;
+  box-shadow: 0 0 0 2px #fff;
+}
+.need-label {
+  background: #fff; border: 1px solid; border-radius: 12px;
+  padding: 1px 8px; font-size: 11px; margin-left: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18); max-width: calc(100% - 18px);
+}
+.need-label strong { font-weight: 700; }
+
+.modal-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
 
 .now-line {
   position: absolute; left: 0; right: 0; height: 2px;

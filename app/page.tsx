@@ -16,7 +16,7 @@ export default function Home() {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
     setBusy(true);
-    const res = await fetch(`/api/plan/${trimmed}/events`);
+    const res = await fetch(`/api/plan/${trimmed}/people`);
     setBusy(false);
     if (res.ok) {
       router.push(`/plan/${trimmed}`);

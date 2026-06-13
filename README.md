@@ -8,12 +8,19 @@ It includes tools to help a single person quickly plan out the week so they know
 
 ## Features
 
+- **People sidebar** — manage any number of **drivers** and **kids**, each with
+  a name and color. Add, rename, recolor, or remove them.
 - **Week view** of the current week (Mon–Sun) with an hourly time grid and a
-  live "now" line.
-- **Shared access** — each calendar (a *plan*) has a short access code. Anyone
-  with the code and URL (`/plan/ABC123`) sees and edits the same events.
-- **Add / edit / delete events** by clicking an empty slot or an existing event.
-  Each event has a title, day, start/end time, optional person, color, and notes.
+  live "now" line. The grid shows two kinds of things:
+  - **Kid needs** — a *point in time* (and place) a kid needs to be somewhere,
+    shown as a labeled marker, e.g. "5:00 PM · Sam · Soccer field".
+  - **Driver availability** — a *block of time* a driver can drive, shown as a
+    translucent band in that driver's color.
+- **Shared access** — each plan has a short access code. Anyone with the code
+  and URL (`/plan/ABC123`) sees and edits the same schedule.
+- **Add / edit / delete** by clicking an empty slot or an existing entry. The
+  entry form adapts to who you pick: a kid gets a single time + location, a
+  driver gets an available-from/until range.
 - **Week navigation** (previous / next / today).
 - **Vercel Postgres** persistence — durable across restarts and deploys.
 
@@ -56,13 +63,17 @@ Open http://localhost:3000
 
 ## API
 
-| Method | Path                              | Purpose                    |
-| ------ | --------------------------------- | -------------------------- |
-| POST   | `/api/plan`                       | Create a plan, returns code |
-| GET    | `/api/plan/:code/events?week=...` | List events for a week      |
-| POST   | `/api/plan/:code/events`          | Add an event                |
-| PUT    | `/api/plan/:code/events/:id`      | Update an event             |
-| DELETE | `/api/plan/:code/events/:id`      | Delete an event             |
+| Method | Path                             | Purpose                          |
+| ------ | -------------------------------- | -------------------------------- |
+| POST   | `/api/plan`                      | Create a plan, returns code      |
+| GET    | `/api/plan/:code/people`         | List drivers and kids            |
+| POST   | `/api/plan/:code/people`         | Add a driver or kid              |
+| PUT    | `/api/plan/:code/people/:id`     | Update a person                  |
+| DELETE | `/api/plan/:code/people/:id`     | Remove a person (+ their items)  |
+| GET    | `/api/plan/:code/items?week=...` | List schedule items for a week   |
+| POST   | `/api/plan/:code/items`          | Add a need / availability        |
+| PUT    | `/api/plan/:code/items/:id`      | Update an item                   |
+| DELETE | `/api/plan/:code/items/:id`      | Delete an item                   |
 
 ## Note on access
 

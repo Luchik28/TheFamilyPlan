@@ -44,16 +44,35 @@ export type Plan = {
   name: string;
 };
 
-export type CalendarEvent = {
+export type Role = "driver" | "kid";
+
+export type Person = {
   id: number;
   plan_id: number;
-  title: string;
+  name: string;
+  role: Role;
+  color: string;
+};
+
+// A schedule item belongs to a person. For a KID it's a "need": a point in
+// time (start_time, no end_time) and a place they must be. For a DRIVER it's
+// an "availability": a block of time (start_time..end_time).
+export type ScheduleItem = {
+  id: number;
+  plan_id: number;
+  person_id: number;
   event_date: string; // YYYY-MM-DD
   start_time: string; // HH:MM
-  end_time: string; // HH:MM
-  person: string;
-  color: string;
+  end_time: string | null; // HH:MM for drivers; null for kid needs
+  location: string;
   notes: string;
+};
+
+// Item joined with its person's display fields, as returned to the calendar.
+export type ScheduleItemWithPerson = ScheduleItem & {
+  person_name: string;
+  person_role: Role;
+  person_color: string;
 };
 
 // Create the schema once per warm serverless instance. CREATE TABLE IF NOT
@@ -72,15 +91,23 @@ export function ensureSchema(): Promise<void> {
         )
       `;
       await sql`
-        CREATE TABLE IF NOT EXISTS events (
+        CREATE TABLE IF NOT EXISTS people (
+          id        SERIAL PRIMARY KEY,
+          plan_id   INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+          name      TEXT NOT NULL,
+          role      TEXT NOT NULL CHECK (role IN ('driver', 'kid')),
+          color     TEXT NOT NULL DEFAULT '#4f7cff'
+        )
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS schedule_items (
           id          SERIAL PRIMARY KEY,
           plan_id     INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
-          title       TEXT NOT NULL,
+          person_id   INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
           event_date  TEXT NOT NULL,
           start_time  TEXT NOT NULL,
-          end_time    TEXT NOT NULL,
-          person      TEXT NOT NULL DEFAULT '',
-          color       TEXT NOT NULL DEFAULT '#4f7cff',
+          end_time    TEXT,
+          location    TEXT NOT NULL DEFAULT '',
           notes       TEXT NOT NULL DEFAULT ''
         )
       `;
@@ -96,6 +123,17 @@ export function ensureSchema(): Promise<void> {
 export async function getPlanByCode(code: string): Promise<Plan | null> {
   const { rows } = await sql<Plan>`
     SELECT id, code, name FROM plans WHERE code = ${code.toUpperCase()}
+  `;
+  return rows[0] ?? null;
+}
+
+export async function getPersonInPlan(
+  planId: number,
+  personId: number
+): Promise<Person | null> {
+  const { rows } = await sql<Person>`
+    SELECT id, plan_id, name, role, color
+    FROM people WHERE id = ${personId} AND plan_id = ${planId}
   `;
   return rows[0] ?? null;
 }
