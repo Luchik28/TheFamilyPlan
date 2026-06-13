@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
-import { ensureSchema, getPlanByCode } from "@/lib/db";
+import { ensureSchema, getPlanByCode, sql } from "@/lib/db";
 import { generateCode } from "@/lib/events";
 
 export const runtime = "nodejs";

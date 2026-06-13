@@ -1,4 +1,4 @@
-# The Family Plan 📅
+# The Family Plan
 
 Are you a member of a family that has a VERY complicated logistics schedules?
 Are the kids always being shuttled around to various extracurricular activities?

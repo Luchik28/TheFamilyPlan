@@ -1,4 +1,42 @@
-import { sql } from "@vercel/postgres";
+import {
+  createPool,
+  type QueryResult,
+  type QueryResultRow,
+  type VercelPool,
+} from "@vercel/postgres";
+
+// @vercel/postgres does not export its `Primitive` value type, so mirror it.
+type Primitive = string | number | boolean | undefined | null;
+
+// Accept whatever connection variable the chosen provider injects. Vercel's
+// Neon integration sets POSTGRES_URL; some providers only set DATABASE_URL.
+// Falling back across both means the app connects without manual env tweaking.
+function resolveConnectionString(): string | undefined {
+  return (
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING
+  );
+}
+
+// Lazily create the pool on first query (not at import time) so the build and
+// any non-DB pages don't blow up when no connection string is configured yet.
+let pool: VercelPool | null = null;
+function getPool(): VercelPool {
+  if (!pool) {
+    pool = createPool({ connectionString: resolveConnectionString() });
+  }
+  return pool;
+}
+
+// A `sql` tagged-template that routes through our lazily-resolved pool.
+export function sql<O extends QueryResultRow>(
+  strings: TemplateStringsArray,
+  ...values: Primitive[]
+): Promise<QueryResult<O>> {
+  return getPool().sql<O>(strings, ...values);
+}
 
 export type Plan = {
   id: number;
