@@ -15,9 +15,12 @@ export function generateCode(length = 6): string {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 
-function toMinutes(hhmm: string): number {
+export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
+}
+export function fromMinutes(mins: number): string {
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
 // Sunday..Saturday (inclusive) of the week containing `weekParam` (or today),

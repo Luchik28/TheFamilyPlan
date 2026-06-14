@@ -7,7 +7,7 @@ import {
   getPlanByCode,
   sql,
 } from "@/lib/db";
-import { validateItem, weekRange } from "@/lib/schedule";
+import { fromMinutes, toMinutes, validateItem, weekRange } from "@/lib/schedule";
 
 export const runtime = "nodejs";
 
@@ -80,6 +80,32 @@ export async function POST(req: Request, { params }: Params) {
     const travelMins = person.role === "kid" && Number.isInteger(Number(data.travel_mins)) && Number(data.travel_mins) > 0
       ? Number(data.travel_mins) : null;
 
+    // For drivers, merge with any overlapping availability on the same day.
+    let insertStart = data.start_time as string;
+    let insertEnd = endTime as string | null;
+    if (person.role === "driver" && endTime) {
+      const { rows: existing } = await sql<ScheduleItem>`
+        SELECT * FROM schedule_items
+        WHERE person_id = ${person.id} AND event_date = ${data.event_date} AND end_time IS NOT NULL
+      `;
+      const newS = toMinutes(data.start_time);
+      const newE = toMinutes(endTime);
+      const overlapping = existing.filter((it) => {
+        const s = toMinutes(it.start_time);
+        const e = toMinutes(it.end_time!);
+        return s < newE && e > newS;
+      });
+      if (overlapping.length > 0) {
+        const mergedS = Math.min(newS, ...overlapping.map((it) => toMinutes(it.start_time)));
+        const mergedE = Math.max(newE, ...overlapping.map((it) => toMinutes(it.end_time!)));
+        for (const it of overlapping) {
+          await sql`DELETE FROM schedule_items WHERE id = ${it.id}`;
+        }
+        insertStart = fromMinutes(mergedS);
+        insertEnd = fromMinutes(mergedE);
+      }
+    }
+
     const { rows } = await sql<ScheduleItem>`
       INSERT INTO schedule_items
         (plan_id, person_id, event_date, start_time, end_time, location, lat, lng, travel_mins, notes, trip_type)
@@ -87,8 +113,8 @@ export async function POST(req: Request, { params }: Params) {
         ${plan.id},
         ${person.id},
         ${data.event_date},
-        ${data.start_time},
-        ${endTime},
+        ${insertStart},
+        ${insertEnd},
         ${(data.location || "").trim()},
         ${lat},
         ${lng},
