@@ -57,6 +57,8 @@ export type Person = {
 // A schedule item belongs to a person. For a KID it's a "need": a point in
 // time (start_time, no end_time) and a place they must be. For a DRIVER it's
 // an "availability": a block of time (start_time..end_time).
+export type TripType = "dropoff" | "pickup";
+
 export type ScheduleItem = {
   id: number;
   plan_id: number;
@@ -66,6 +68,7 @@ export type ScheduleItem = {
   end_time: string | null; // HH:MM for drivers; null for kid needs
   location: string;
   notes: string;
+  trip_type: TripType; // only meaningful for kid needs
 };
 
 // Item joined with its person's display fields, as returned to the calendar.
@@ -108,8 +111,13 @@ export function ensureSchema(): Promise<void> {
           start_time  TEXT NOT NULL,
           end_time    TEXT,
           location    TEXT NOT NULL DEFAULT '',
-          notes       TEXT NOT NULL DEFAULT ''
+          notes       TEXT NOT NULL DEFAULT '',
+          trip_type   TEXT NOT NULL DEFAULT 'dropoff'
         )
+      `;
+      await sql`
+        ALTER TABLE schedule_items
+          ADD COLUMN IF NOT EXISTS trip_type TEXT NOT NULL DEFAULT 'dropoff'
       `;
     })().catch((err) => {
       // Reset so a later request can retry schema creation.

@@ -7,6 +7,8 @@ A list of things that need to be fixed.
  - You should just drag along the calendar view to map out when someone is available.
  - Line needs to appear at the time they selected it, not at the nearest hour (maybe snap to nearest 5 min)
  - Line should show the time, tho.
+ - It right now only loads if its connecting to the db, so I can't test it except on prodocution in Vercel, which isnt very efficient.
+ - Add dropoff vs pickup.
 
 ### Features (things that shouldm't work yet and don't)
  - Maybe integrate with some kind of mapping software to add a kind of driving time before each thing? Need to research that
@@ -16,7 +18,8 @@ A list of things that need to be fixed.
  - Import other calendar? Could be helpful for automating the putting in process.
  - Maybe add auth/accounts so people can sync their stuff.
  - Maybe customizable bg/other stuff.
- - Add dropoff vs pickup.
+ - Multi kid pickup/dropoffs, bc a lot of times multiple kids need to get picked up/dropped off at the same time.
+
 
 ### Done (things that should work and do (for now))
  - The Kid's selector shadow should be a single line

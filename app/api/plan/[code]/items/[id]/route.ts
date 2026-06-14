@@ -30,6 +30,7 @@ export async function PUT(req: Request, { params }: Params) {
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
 
     const endTime = person.role === "driver" ? data.end_time : null;
+    const tripType = person.role === "kid" && data.trip_type === "pickup" ? "pickup" : "dropoff";
 
     const { rows } = await sql<ScheduleItem>`
       UPDATE schedule_items SET
@@ -38,7 +39,8 @@ export async function PUT(req: Request, { params }: Params) {
         start_time = ${data.start_time},
         end_time = ${endTime},
         location = ${(data.location || "").trim()},
-        notes = ${(data.notes || "").trim()}
+        notes = ${(data.notes || "").trim()},
+        trip_type = ${tripType}
       WHERE id = ${Number(id)} AND plan_id = ${plan.id}
       RETURNING *
     `;

@@ -67,9 +67,11 @@ export async function POST(req: Request, { params }: Params) {
     // Kids are points in time, so they never carry an end time.
     const endTime = person.role === "driver" ? data.end_time : null;
 
+    const tripType = person.role === "kid" && data.trip_type === "pickup" ? "pickup" : "dropoff";
+
     const { rows } = await sql<ScheduleItem>`
       INSERT INTO schedule_items
-        (plan_id, person_id, event_date, start_time, end_time, location, notes)
+        (plan_id, person_id, event_date, start_time, end_time, location, notes, trip_type)
       VALUES (
         ${plan.id},
         ${person.id},
@@ -77,7 +79,8 @@ export async function POST(req: Request, { params }: Params) {
         ${data.start_time},
         ${endTime},
         ${(data.location || "").trim()},
-        ${(data.notes || "").trim()}
+        ${(data.notes || "").trim()},
+        ${tripType}
       )
       RETURNING *
     `;

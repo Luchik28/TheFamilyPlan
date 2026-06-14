@@ -31,10 +31,13 @@ type ScheduleItem = {
   end_time: string | null;
   location: string;
   notes: string;
+  trip_type: TripType;
   person_name: string;
   person_role: Role;
   person_color: string;
 };
+
+type TripType = "dropoff" | "pickup";
 
 type ItemForm = {
   id: number | null;
@@ -44,6 +47,7 @@ type ItemForm = {
   end_time: string;
   location: string;
   notes: string;
+  trip_type: TripType;
 };
 
 type PersonForm = {
@@ -228,6 +232,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       end_time: `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`,
       location: "",
       notes: "",
+      trip_type: "dropoff",
     });
   }
   function openEditItem(it: ScheduleItem) {
@@ -239,6 +244,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       end_time: it.end_time ?? it.start_time,
       location: it.location,
       notes: it.notes,
+      trip_type: it.trip_type ?? "dropoff",
     });
   }
   async function submitItem(e: React.FormEvent) {
@@ -251,6 +257,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       end_time: formPerson.role === "driver" ? itemForm.end_time : null,
       location: itemForm.location.trim(),
       notes: itemForm.notes.trim(),
+      trip_type: formPerson.role === "kid" ? itemForm.trip_type : "dropoff",
     };
     const url = itemForm.id
       ? `/api/plan/${code}/items/${itemForm.id}`
@@ -432,6 +439,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     <span className="need-dot" style={{ background: it.person_color }} />
                     <span className="need-label" style={{ borderColor: it.person_color }}>
                       <strong>{fmtTime(it.start_time)}</strong> {it.person_name}
+                      {" · "}{it.trip_type === "pickup" ? "pick up" : "drop off"}
                       {it.location ? ` · ${it.location}` : ""}
                     </span>
                   </div>
@@ -543,8 +551,24 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 </div>
               ) : (
                 <>
+                  <div className="trip-toggle">
+                    <button
+                      type="button"
+                      className={itemForm.trip_type === "dropoff" ? "active" : ""}
+                      onClick={() => setItemForm({ ...itemForm, trip_type: "dropoff" })}
+                    >
+                      Drop off
+                    </button>
+                    <button
+                      type="button"
+                      className={itemForm.trip_type === "pickup" ? "active" : ""}
+                      onClick={() => setItemForm({ ...itemForm, trip_type: "pickup" })}
+                    >
+                      Pick up
+                    </button>
+                  </div>
                   <label>
-                    Needs to be there at
+                    {itemForm.trip_type === "pickup" ? "Needs to be picked up at" : "Needs to be there at"}
                     <input
                       type="time" required
                       value={itemForm.start_time}
