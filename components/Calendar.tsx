@@ -128,6 +128,9 @@ function fmtTime(hhmm: string): string {
 function topFor(hhmm: string): number {
   return ((minutesOf(hhmm) - DAY_START * 60) / 60) * HOUR_H;
 }
+function minsToTime(mins: number): string {
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
 
 export default function Calendar({ code, name }: { code: string; name: string }) {
   const [weekStart] = useState<Date>(() => defaultWeekStart());
@@ -144,7 +147,11 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
   const [drivesOpen, setDrivesOpen] = useState(false);
+  const [hoverGhost, setHoverGhost] = useState<{ dateStr: string; startMins: number } | null>(null);
+  const [dragGhost, setDragGhost] = useState<{ dateStr: string; startMins: number; endMins: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragRef = useRef<{ dateStr: string; startMins: number; startClientY: number; isDragging: boolean; endMins: number } | null>(null);
+  const selectedPersonRef = useRef<Person | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -179,6 +186,54 @@ export default function Calendar({ code, name }: { code: string; name: string })
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragRef.current) return;
+      const deltaY = e.clientY - dragRef.current.startClientY;
+      if (!dragRef.current.isDragging && Math.abs(deltaY) > 5) {
+        dragRef.current.isDragging = true;
+      }
+      if (dragRef.current.isDragging) {
+        const extraMins = Math.round((deltaY / HOUR_H) * 60 / 5) * 5;
+        const endMins = Math.min(
+          Math.max(dragRef.current.startMins + 15, dragRef.current.startMins + extraMins),
+          DAY_END * 60
+        );
+        dragRef.current.endMins = endMins;
+        setDragGhost({ dateStr: dragRef.current.dateStr, startMins: dragRef.current.startMins, endMins });
+        setHoverGhost(null);
+      }
+    }
+    function onMouseUp() {
+      if (!dragRef.current) return;
+      const { dateStr, startMins, endMins, isDragging } = dragRef.current;
+      const person = selectedPersonRef.current;
+      dragRef.current = null;
+      setDragGhost(null);
+      if (!person || person.role !== "driver") return;
+      const finalEnd = isDragging ? endMins : Math.min(startMins + 60, DAY_END * 60);
+      setItemForm({
+        id: null,
+        person_id: person.id,
+        event_date: dateStr,
+        start_time: minsToTime(startMins),
+        end_time: minsToTime(finalEnd),
+        location: "",
+        lat: null,
+        lng: null,
+        travel_mins: null,
+        notes: "",
+        trip_type: "dropoff",
+      });
+    }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
   }, []);
 
   // Compute origin labels for all kid needs, and fetch OSRM for those without a saved time.
@@ -322,6 +377,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
     () => people.find((p) => p.id === selectedId) ?? null,
     [people, selectedId]
   );
+  useEffect(() => { selectedPersonRef.current = selectedPerson; }, [selectedPerson]);
   // Whose role the open item form is for (the entry's person).
   const formPerson = useMemo(
     () => people.find((p) => p.id === itemForm?.person_id) ?? null,
@@ -590,22 +646,64 @@ export default function Calendar({ code, name }: { code: string; name: string })
               selectedId !== null && it.person_id !== selectedId ? " dim" : "";
 
             return (
-              <div key={`col-${i}`} className="day-col">
+              <div
+                key={`col-${i}`}
+                className="day-col"
+                onMouseLeave={() => { if (!dragRef.current) setHoverGhost(null); }}
+              >
                 {hours.map((h) => (
                   <div
                     key={`c-${i}-${h}`}
                     className="hour-cell"
                     onClick={(e) => {
+                      if (selectedPerson?.role !== "kid") return;
                       const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
                       const minute = Math.min(Math.round(y / (HOUR_H / 60) / 5) * 5, 55);
                       addForSelected(dateStr, h, minute);
                     }}
-                    onMouseMove={(e) => {
+                    onMouseDown={(e) => {
+                      if (selectedPerson?.role !== "driver") return;
+                      e.preventDefault();
                       const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-                      e.currentTarget.style.setProperty("--hover-y", `${y}px`);
+                      const minute = Math.min(Math.round(y / (HOUR_H / 60) / 5) * 5, 55);
+                      const startMins = h * 60 + minute;
+                      dragRef.current = { dateStr, startMins, startClientY: e.clientY, isDragging: false, endMins: startMins + 60 };
+                    }}
+                    onMouseMove={(e) => {
+                      if (selectedPerson?.role === "kid") {
+                        const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                        e.currentTarget.style.setProperty("--hover-y", `${y}px`);
+                      } else if (selectedPerson?.role === "driver" && !dragRef.current?.isDragging) {
+                        const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                        const minute = Math.min(Math.round(y / (HOUR_H / 60) / 5) * 5, 55);
+                        setHoverGhost({ dateStr, startMins: h * 60 + minute });
+                      }
                     }}
                   />
                 ))}
+
+                {selectedPerson?.role === "driver" && (() => {
+                  const ghost = dragGhost?.dateStr === dateStr
+                    ? dragGhost
+                    : hoverGhost?.dateStr === dateStr
+                    ? { startMins: hoverGhost.startMins, endMins: Math.min(hoverGhost.startMins + 60, DAY_END * 60) }
+                    : null;
+                  if (!ghost) return null;
+                  const gTop = topFor(minsToTime(ghost.startMins));
+                  const gHeight = Math.max(topFor(minsToTime(ghost.endMins)) - gTop, 18);
+                  return (
+                    <div
+                      className="avail avail-ghost"
+                      style={{
+                        top: `${gTop}px`,
+                        height: `${gHeight}px`,
+                        borderColor: selectedPerson.color,
+                        background: `${selectedPerson.color}22`,
+                        color: selectedPerson.color,
+                      }}
+                    />
+                  );
+                })()}
 
                 {avails.map((it) => {
                   const top = topFor(it.start_time);

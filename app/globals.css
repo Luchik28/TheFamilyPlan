@@ -194,6 +194,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* Driver availability — a translucent block spanning a time range. */
+.avail-ghost { opacity: .5; pointer-events: none; border-style: dashed !important; }
 .avail {
   position: absolute; left: 3px; right: 3px;
   border-radius: 6px; padding: 3px 7px; font-size: 12px;

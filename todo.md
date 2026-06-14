@@ -5,7 +5,6 @@ A list of things that need to be fixed.
 ### Bugs (things that should work but don't)
 
  - You should just drag along the calendar view to map out when someone is available.
- - Line should show the time, tho.
  - It right now only loads if its connecting to the db, so I can't test it except on prodocution in Vercel, which isnt very efficient.
 
 ### Features (things that shouldm't work yet and don't)
