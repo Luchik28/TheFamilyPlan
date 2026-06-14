@@ -67,6 +67,8 @@ export type ScheduleItem = {
   start_time: string; // HH:MM
   end_time: string | null; // HH:MM for drivers; null for kid needs
   location: string;
+  lat: number | null;
+  lng: number | null;
   notes: string;
   trip_type: TripType; // only meaningful for kid needs
 };
@@ -119,6 +121,8 @@ export function ensureSchema(): Promise<void> {
         ALTER TABLE schedule_items
           ADD COLUMN IF NOT EXISTS trip_type TEXT NOT NULL DEFAULT 'dropoff'
       `;
+      await sql`ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS lat FLOAT`;
+      await sql`ALTER TABLE schedule_items ADD COLUMN IF NOT EXISTS lng FLOAT`;
     })().catch((err) => {
       // Reset so a later request can retry schema creation.
       schemaReady = null;

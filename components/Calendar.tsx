@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import LocationInput from "./LocationInput";
 
 const DAY_START = 6; // grid starts at 06:00
 const DAY_END = 23; // grid ends at 23:00
@@ -30,6 +31,8 @@ type ScheduleItem = {
   start_time: string;
   end_time: string | null;
   location: string;
+  lat: number | null;
+  lng: number | null;
   notes: string;
   trip_type: TripType;
   person_name: string;
@@ -46,6 +49,8 @@ type ItemForm = {
   start_time: string;
   end_time: string;
   location: string;
+  lat: number | null;
+  lng: number | null;
   notes: string;
   trip_type: TripType;
 };
@@ -228,6 +233,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
       start_time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
       end_time: `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`,
       location: "",
+      lat: null,
+      lng: null,
       notes: "",
       trip_type: "dropoff",
     });
@@ -240,6 +247,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
       start_time: it.start_time,
       end_time: it.end_time ?? it.start_time,
       location: it.location,
+      lat: it.lat ?? null,
+      lng: it.lng ?? null,
       notes: it.notes,
       trip_type: it.trip_type ?? "dropoff",
     });
@@ -253,6 +262,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
       start_time: itemForm.start_time,
       end_time: formPerson.role === "driver" ? itemForm.end_time : null,
       location: itemForm.location.trim(),
+      lat: itemForm.lat,
+      lng: itemForm.lng,
       notes: itemForm.notes.trim(),
       trip_type: formPerson.role === "kid" ? itemForm.trip_type : "dropoff",
     };
@@ -574,10 +585,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   </label>
                   <label>
                     Where (location)
-                    <input
-                      type="text" maxLength={80} placeholder="e.g. Soccer field"
+                    <LocationInput
                       value={itemForm.location}
-                      onChange={(e) => setItemForm({ ...itemForm, location: e.target.value })}
+                      onChange={(v) => setItemForm({ ...itemForm, location: v, lat: null, lng: null })}
+                      onSelect={(address, lat, lng) => setItemForm({ ...itemForm, location: address, lat, lng })}
                     />
                   </label>
                 </>

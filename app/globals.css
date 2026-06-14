@@ -228,6 +228,18 @@ input:focus, select:focus, textarea:focus {
 
 .modal-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
 
+.location-input { position: relative; }
+.location-suggestions {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12); margin-top: 2px; padding: 4px 0;
+  list-style: none; max-height: 200px; overflow-y: auto;
+}
+.location-suggestions li {
+  padding: 8px 12px; font-size: 13px; cursor: pointer; line-height: 1.4;
+}
+.location-suggestions li:hover { background: #f4f6fb; }
+
 .trip-toggle {
   display: flex; border: 1px solid var(--line); border-radius: 8px;
   overflow: hidden; margin-bottom: 14px;

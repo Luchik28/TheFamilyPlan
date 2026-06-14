@@ -32,6 +32,9 @@ export async function PUT(req: Request, { params }: Params) {
     const endTime = person.role === "driver" ? data.end_time : null;
     const tripType = person.role === "kid" && data.trip_type === "pickup" ? "pickup" : "dropoff";
 
+    const lat = typeof data.lat === "number" ? data.lat : null;
+    const lng = typeof data.lng === "number" ? data.lng : null;
+
     const { rows } = await sql<ScheduleItem>`
       UPDATE schedule_items SET
         person_id = ${person.id},
@@ -39,6 +42,8 @@ export async function PUT(req: Request, { params }: Params) {
         start_time = ${data.start_time},
         end_time = ${endTime},
         location = ${(data.location || "").trim()},
+        lat = ${lat},
+        lng = ${lng},
         notes = ${(data.notes || "").trim()},
         trip_type = ${tripType}
       WHERE id = ${Number(id)} AND plan_id = ${plan.id}
