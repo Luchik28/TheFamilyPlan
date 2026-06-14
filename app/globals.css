@@ -224,8 +224,8 @@ input:focus, select:focus, textarea:focus {
 .need-label strong { font-weight: 700; }
 
 /* Greyed out when another person is selected. */
-.avail.dim, .need.dim { opacity: .2; filter: grayscale(0.4); }
-.avail.dim:hover, .need.dim:hover { opacity: .55; }
+.avail.dim, .need.dim, .travel-block.dim, .travel-origin.dim { opacity: .2; filter: grayscale(0.4); pointer-events: none; }
+
 
 .modal-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
 
