@@ -211,18 +211,21 @@ export default function Calendar({ code, name }: { code: string; name: string })
   }
 
   // ---- schedule items ----------------------------------------------------- //
-  function addForSelected(dateStr?: string, hour?: number) {
+  function addForSelected(dateStr?: string, hour?: number, minute?: number) {
     if (!selectedPerson) {
       showToast("Pick a driver or kid on the left first");
       return;
     }
     const h = hour ?? 9;
+    const m = minute ?? 0;
+    const startMins = h * 60 + m;
+    const endMins = Math.min(startMins + 60, DAY_END * 60);
     setItemForm({
       id: null,
       person_id: selectedPerson.id,
       event_date: dateStr ?? isoDate(weekStart),
-      start_time: `${String(h).padStart(2, "0")}:00`,
-      end_time: `${String(Math.min(h + 1, 23)).padStart(2, "0")}:00`,
+      start_time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+      end_time: `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`,
       location: "",
       notes: "",
     });
@@ -383,7 +386,11 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   <div
                     key={`c-${i}-${h}`}
                     className="hour-cell"
-                    onClick={() => addForSelected(dateStr, h)}
+                    onClick={(e) => {
+                      const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                      const minute = Math.min(Math.round(y / (HOUR_H / 60) / 5) * 5, 55);
+                      addForSelected(dateStr, h, minute);
+                    }}
                     onMouseMove={(e) => {
                       const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
                       e.currentTarget.style.setProperty("--hover-y", `${y}px`);

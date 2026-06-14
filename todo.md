@@ -4,8 +4,9 @@ A list of things that need to be fixed.
 
 ### Bugs (things that should work but don't)
 
- - Change kid's selector so it matches their color (for consistency)
  - You should just drag along the calendar view to map out when someone is available.
+ - Line needs to appear at the time they selected it, not at the nearest hour (maybe snap to nearest 5 min)
+ - Line should show the time, tho.
 
 ### Features (things that shouldm't work yet and don't)
  - Maybe integrate with some kind of mapping software to add a kind of driving time before each thing? Need to research that
@@ -16,7 +17,7 @@ A list of things that need to be fixed.
  - Maybe add auth/accounts so people can sync their stuff.
  - Maybe customizable bg/other stuff.
  - Add dropoff vs pickup.
- - 
 
 ### Done (things that should work and do (for now))
  - The Kid's selector shadow should be a single line
+ - Change kid's selector so it matches their color (for consistency)
