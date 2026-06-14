@@ -17,7 +17,7 @@ A list of things that need to be fixed.
  - Maybe add auth/accounts so people can sync their stuff.
  - Maybe customizable bg/other stuff.
  - Multi kid pickup/dropoffs, bc a lot of times multiple kids need to get picked up/dropped off at the same time.
-
+ - Some kind of way to track where each kid at each point in the day. Or maybe in the logic it's just like when was their last event/pickup? With the default being HOME.
 
 ### Done (things that should work and do (for now))
  - The Kid's selector shadow should be a single line
