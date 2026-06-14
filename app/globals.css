@@ -236,6 +236,29 @@ input:focus, select:focus, textarea:focus {
 .travel-label { font-size: 10px; font-weight: 600; opacity: .75; white-space: nowrap; }
 
 .settings-btn { font-size: 12px; margin-left: 8px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.drives-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 10px;
+  font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 4px; margin-left: 4px;
+}
+.modal-wide { width: min(680px, 92vw); }
+.drives-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.drive-row {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbff;
+}
+.drive-time { min-width: 90px; display: flex; flex-direction: column; gap: 2px; }
+.drive-date { font-size: 11px; color: var(--muted); }
+.drive-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.drive-who { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; flex-wrap: wrap; }
+.drive-participant { display: flex; align-items: center; gap: 4px; }
+.drive-type { font-size: 11px; font-weight: 400; color: var(--muted); background: #f0f2f8; border-radius: 6px; padding: 1px 6px; }
+.drive-route { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.drive-loc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-arrow { color: var(--accent); font-weight: 700; }
+.drive-duration { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 600; margin-left: 4px; }
+.field-hint { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
 
 .location-input { position: relative; }
 .location-suggestions {

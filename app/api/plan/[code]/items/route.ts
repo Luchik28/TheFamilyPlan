@@ -77,10 +77,12 @@ export async function POST(req: Request, { params }: Params) {
 
     const lat = typeof data.lat === "number" ? data.lat : null;
     const lng = typeof data.lng === "number" ? data.lng : null;
+    const travelMins = person.role === "kid" && Number.isInteger(Number(data.travel_mins)) && Number(data.travel_mins) > 0
+      ? Number(data.travel_mins) : null;
 
     const { rows } = await sql<ScheduleItem>`
       INSERT INTO schedule_items
-        (plan_id, person_id, event_date, start_time, end_time, location, lat, lng, notes, trip_type)
+        (plan_id, person_id, event_date, start_time, end_time, location, lat, lng, travel_mins, notes, trip_type)
       VALUES (
         ${plan.id},
         ${person.id},
@@ -90,6 +92,7 @@ export async function POST(req: Request, { params }: Params) {
         ${(data.location || "").trim()},
         ${lat},
         ${lng},
+        ${travelMins},
         ${(data.notes || "").trim()},
         ${tripType}
       )

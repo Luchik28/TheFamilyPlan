@@ -24,6 +24,25 @@ type Person = {
   color: string;
 };
 
+// What should be in a "plan"
+// It's a list of drives? Each drive has start, person, location, etc.
+// So a LIST of drives
+
+type Drive = {
+  id: number;
+  start_time: string;
+  duration_mins: number;
+  participants: Person[];
+  start_location: string;
+  end_location: string;
+}
+
+type Plan = {
+  id: number;
+  week_start: string;
+  drives: Drive[];
+};
+
 type ScheduleItem = {
   id: number;
   person_id: number;
@@ -33,6 +52,7 @@ type ScheduleItem = {
   location: string;
   lat: number | null;
   lng: number | null;
+  travel_mins: number | null;
   notes: string;
   trip_type: TripType;
   person_name: string;
@@ -51,6 +71,7 @@ type ItemForm = {
   location: string;
   lat: number | null;
   lng: number | null;
+  travel_mins: number | null;
   notes: string;
   trip_type: TripType;
 };
@@ -121,6 +142,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const [travelTimes, setTravelTimes] = useState<Record<number, number>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
+  const [drivesOpen, setDrivesOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -162,7 +184,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
   useEffect(() => {
     const controller = new AbortController();
     async function compute() {
-      const kidNeeds = items.filter((it) => it.person_role === "kid");
+      // Only fetch OSRM for needs that don't already have a saved travel time
+      const kidNeeds = items.filter((it) => it.person_role === "kid" && it.travel_mins === null);
       const routes: { id: number; oLat: number; oLng: number; dLat: number; dLng: number }[] = [];
 
       // Group by kid+date so we can track each kid's location chain through the day
@@ -219,6 +242,27 @@ export default function Calendar({ code, name }: { code: string; name: string })
   );
   const drivers = useMemo(() => people.filter((p) => p.role === "driver"), [people]);
   const kids = useMemo(() => people.filter((p) => p.role === "kid"), [people]);
+
+  const plan = useMemo<Plan>(() => {
+    const kidNeeds = items
+      .filter((it) => it.person_role === "kid")
+      .sort((a, b) => a.event_date.localeCompare(b.event_date) || minutesOf(a.start_time) - minutesOf(b.start_time));
+    return {
+      id: 0,
+      week_start: isoDate(weekStart),
+      drives: kidNeeds.map((it) => {
+        const kidPerson = people.find((p) => p.id === it.person_id);
+        return {
+          id: it.id,
+          start_time: it.start_time,
+          duration_mins: it.travel_mins ?? travelTimes[it.id] ?? 0,
+          participants: kidPerson ? [kidPerson] : [],
+          start_location: home.address || "Home",
+          end_location: it.location || "—",
+        };
+      }),
+    };
+  }, [items, weekStart, people, home, travelTimes]);
 
   const selectedPerson = useMemo(
     () => people.find((p) => p.id === selectedId) ?? null,
@@ -301,6 +345,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       location: "",
       lat: null,
       lng: null,
+      travel_mins: null,
       notes: "",
       trip_type: "dropoff",
     });
@@ -315,6 +360,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       location: it.location,
       lat: it.lat ?? null,
       lng: it.lng ?? null,
+      travel_mins: it.travel_mins ?? travelTimes[it.id] ?? null,
       notes: it.notes,
       trip_type: it.trip_type ?? "dropoff",
     });
@@ -330,6 +376,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       location: itemForm.location.trim(),
       lat: itemForm.lat,
       lng: itemForm.lng,
+      travel_mins: formPerson.role === "kid" ? itemForm.travel_mins : null,
       notes: itemForm.notes.trim(),
       trip_type: formPerson.role === "kid" ? itemForm.trip_type : "dropoff",
     };
@@ -440,14 +487,19 @@ export default function Calendar({ code, name }: { code: string; name: string })
             </button>
           </div>
           <span className="week-label">{weekLabel}</span>
-          <button
-            className="primary"
-            type="button"
-            disabled={!selectedPerson}
-            onClick={() => addForSelected()}
-          >
-            {selectedPerson ? `+ Add for ${selectedPerson.name}` : "+ Add"}
-          </button>
+          <div className="topbar-right">
+            <button type="button" className="ghost-btn" onClick={() => setDrivesOpen(true)}>
+              Drives {plan.drives.length > 0 && <span className="drives-badge">{plan.drives.length}</span>}
+            </button>
+            <button
+              className="primary"
+              type="button"
+              disabled={!selectedPerson}
+              onClick={() => addForSelected()}
+            >
+              {selectedPerson ? `+ Add for ${selectedPerson.name}` : "+ Add"}
+            </button>
+          </div>
         </header>
 
         {toast && <div className="toast">{toast}</div>}
@@ -526,7 +578,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 })}
 
                 {needs.map((it) => {
-                  const travelMins = travelTimes[it.id];
+                  const travelMins = it.travel_mins ?? travelTimes[it.id];
                   if (!travelMins) return null;
                   const needTop = topFor(it.start_time);
                   const blockH = (travelMins / 60) * HOUR_H;
@@ -697,6 +749,16 @@ export default function Calendar({ code, name }: { code: string; name: string })
                       onSelect={(address, lat, lng) => setItemForm({ ...itemForm, location: address, lat, lng })}
                     />
                   </label>
+                  <label>
+                    Drive time (min)
+                    <input
+                      type="number" min="1" step="1" placeholder="e.g. 12"
+                      value={itemForm.travel_mins ?? ""}
+                      onChange={(e) => setItemForm({ ...itemForm, travel_mins: e.target.value ? Number(e.target.value) : null })}
+                    />
+                    {itemForm.travel_mins !== null && (itemForm.travel_mins === (travelTimes[itemForm.id ?? -1]))
+                      && <span className="field-hint">Estimated from map — edit to override</span>}
+                  </label>
                 </>
               )}
 
@@ -718,6 +780,55 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 <button type="submit" className="primary">Save</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- Drives modal ---------------- */}
+      {drivesOpen && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setDrivesOpen(false); }}>
+          <div className="modal modal-wide">
+            <h2>Drives this week</h2>
+            {plan.drives.length === 0 ? (
+              <p className="modal-sub">No kid needs scheduled yet — add some from the calendar.</p>
+            ) : (
+              <ul className="drives-list">
+                {plan.drives.map((drive) => {
+                  const item = items.find((it) => it.id === drive.id);
+                  return (
+                    <li key={drive.id} className="drive-row">
+                      <div className="drive-time">
+                        <span className="drive-date">{item ? new Date(item.event_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : ""}</span>
+                        <strong>{fmtTime(drive.start_time)}</strong>
+                      </div>
+                      <div className="drive-detail">
+                        <div className="drive-who">
+                          {drive.participants.map((p) => (
+                            <span key={p.id} className="drive-participant">
+                              <span className="person-dot" style={{ background: p.color }} />
+                              {p.name}
+                            </span>
+                          ))}
+                          {item && <span className="drive-type">{item.trip_type === "pickup" ? "pick up" : "drop off"}</span>}
+                        </div>
+                        <div className="drive-route">
+                          <span className="drive-loc">{drive.start_location}</span>
+                          <span className="drive-arrow">→</span>
+                          <span className="drive-loc">{drive.end_location}</span>
+                          {drive.duration_mins > 0 && (
+                            <span className="drive-duration">{drive.duration_mins} min</span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div className="modal-actions">
+              <span className="spacer" />
+              <button type="button" className="primary" onClick={() => setDrivesOpen(false)}>Done</button>
+            </div>
           </div>
         </div>
       )}
