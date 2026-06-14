@@ -189,7 +189,7 @@ input:focus, select:focus, textarea:focus {
 .kid-mode .hour-cell:hover { background: transparent; }
 .kid-mode .hour-cell:hover::after {
   content: ''; position: absolute; left: 0; right: 0; height: 2px;
-  background: rgba(0, 0, 0, 0.208); top: var(--hover-y, 50%); pointer-events: none;
+  background: var(--kid-color, rgba(0, 0, 0, 0.208)); top: var(--hover-y, 50%); pointer-events: none;
 }
 
 /* Driver availability — a translucent block spanning a time range. */

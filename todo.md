@@ -4,7 +4,7 @@ A list of things that need to be fixed.
 
 ### Bugs (things that should work but don't)
 
- - The Kid's selector shadow should be a single line
+ - Change kid's selector so it matches their color (for consistency)
  - You should just drag along the calendar view to map out when someone is available.
 
 ### Features (things that shouldm't work yet and don't)
@@ -15,5 +15,8 @@ A list of things that need to be fixed.
  - Import other calendar? Could be helpful for automating the putting in process.
  - Maybe add auth/accounts so people can sync their stuff.
  - Maybe customizable bg/other stuff.
+ - Add dropoff vs pickup.
+ - 
 
 ### Done (things that should work and do (for now))
+ - The Kid's selector shadow should be a single line

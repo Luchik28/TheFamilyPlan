@@ -346,7 +346,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
         {toast && <div className="toast">{toast}</div>}
 
-        <main className={"calendar" + (selectedPerson ? " has-selection" : "") + (selectedPerson?.role === "kid" ? " kid-mode" : "")}>
+        <main
+          className={"calendar" + (selectedPerson ? " has-selection" : "") + (selectedPerson?.role === "kid" ? " kid-mode" : "")}
+          style={selectedPerson?.role === "kid" ? { "--kid-color": selectedPerson.color } as React.CSSProperties : undefined}
+        >
           <div className="corner" />
           {days.map((d, i) => (
             <div key={`head-${i}`} className={"col-head" + (sameDay(d, now) ? " today" : "")}>
