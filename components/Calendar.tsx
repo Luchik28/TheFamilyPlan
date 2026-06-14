@@ -729,7 +729,15 @@ export default function Calendar({ code, name }: { code: string; name: string })
                         background: `${it.person_color}22`,
                         color: it.person_color,
                       }}
-                      onClick={(e) => { e.stopPropagation(); openEditItem(it); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (selectedPerson?.role === "kid") {
+                          const startMins = minutesOf(it.start_time);
+                          addForSelected(dateStr, Math.floor(startMins / 60), startMins % 60);
+                        } else if (selectedPerson?.id === it.person_id) {
+                          openEditItem(it);
+                        }
+                      }}
                     >
                       <div className="ev-title">{it.person_name}</div>
                       <div className="ev-time">
@@ -775,7 +783,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     key={`n-${it.id}`}
                     className={"need" + dim(it)}
                     style={{ top: `${topFor(it.start_time)}px` }}
-                    onClick={(e) => { e.stopPropagation(); openEditItem(it); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedPerson?.id === it.person_id) openEditItem(it);
+                    }}
                   >
                     <span className="need-dot" style={{ background: it.person_color }} />
                     <span className="need-label" style={{ borderColor: it.person_color }}>

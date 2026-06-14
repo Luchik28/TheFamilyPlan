@@ -19,9 +19,10 @@ export default function LocationInput({ value, onChange, onSelect }: Props) {
   const [open, setOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const userTypedRef = useRef(false);
 
   useEffect(() => {
-    if (value.length < 3) {
+    if (!userTypedRef.current || value.length < 3) {
       setSuggestions([]);
       setOpen(false);
       return;
@@ -75,6 +76,7 @@ export default function LocationInput({ value, onChange, onSelect }: Props) {
         value={value}
         autoComplete="off"
         onChange={(e) => {
+          userTypedRef.current = true;
           onChange(e.target.value);
           if (!e.target.value) setSuggestions([]);
         }}
