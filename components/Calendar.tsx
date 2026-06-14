@@ -117,6 +117,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const [personForm, setPersonForm] = useState<PersonForm | null>(null);
   const [toast, setToast] = useState("");
   const [now, setNow] = useState<Date>(() => new Date());
+  const [home, setHome] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
+  const [travelTimes, setTravelTimes] = useState<Record<number, number>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -132,8 +136,19 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
   const loadItems = useCallback(async () => {
     const res = await fetch(`/api/plan/${code}/items?week=${isoDate(weekStart)}`);
-    if (res.ok) setItems((await res.json()).items);
-    else showToast("Failed to load schedule");
+    if (res.ok) {
+      const data = await res.json();
+      setItems(data.items);
+      if (data.plan) {
+        setHome({
+          address: data.plan.home_address || "",
+          lat: data.plan.home_lat ?? null,
+          lng: data.plan.home_lng ?? null,
+        });
+      }
+    } else {
+      showToast("Failed to load schedule");
+    }
   }, [code, weekStart, showToast]);
 
   useEffect(() => { loadPeople(); }, [loadPeople]);
@@ -142,6 +157,57 @@ export default function Calendar({ code, name }: { code: string; name: string })
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  // Fetch OSRM drive times for kid needs that have coordinates.
+  useEffect(() => {
+    const controller = new AbortController();
+    async function compute() {
+      const kidNeeds = items.filter((it) => it.person_role === "kid");
+      const routes: { id: number; oLat: number; oLng: number; dLat: number; dLng: number }[] = [];
+
+      // Group by kid+date so we can track each kid's location chain through the day
+      const groups = new Map<string, ScheduleItem[]>();
+      for (const it of kidNeeds) {
+        const key = `${it.person_id}:${it.event_date}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(it);
+      }
+
+      for (const group of groups.values()) {
+        group.sort((a, b) => minutesOf(a.start_time) - minutesOf(b.start_time));
+        for (let i = 0; i < group.length; i++) {
+          const it = group[i];
+          if (!it.lat || !it.lng) continue;
+          // Walk backwards to find the closest prior location with coordinates
+          let oLat = home.lat;
+          let oLng = home.lng;
+          for (let j = i - 1; j >= 0; j--) {
+            if (group[j].lat && group[j].lng) { oLat = group[j].lat; oLng = group[j].lng; break; }
+          }
+          if (oLat && oLng) routes.push({ id: it.id, oLat, oLng, dLat: it.lat, dLng: it.lng });
+        }
+      }
+
+      const results = await Promise.all(routes.map(async (r) => {
+        try {
+          const res = await fetch(
+            `https://router.project-osrm.org/route/v1/driving/${r.oLng},${r.oLat};${r.dLng},${r.dLat}?overview=false`,
+            { signal: controller.signal }
+          );
+          const json = await res.json();
+          const mins = Math.round((json.routes?.[0]?.duration ?? 0) / 60);
+          return mins > 0 ? { id: r.id, mins } : null;
+        } catch { return null; }
+      }));
+
+      if (controller.signal.aborted) return;
+      const times: Record<number, number> = {};
+      for (const r of results) { if (r) times[r.id] = r.mins; }
+      setTravelTimes(times);
+    }
+    compute();
+    return () => controller.abort();
+  }, [items, home]);
 
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -293,6 +359,21 @@ export default function Calendar({ code, name }: { code: string; name: string })
     } else showToast("Could not delete");
   }
 
+  async function saveSettings() {
+    const res = await fetch(`/api/plan/${code}/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ home_address: settingsForm.address, home_lat: settingsForm.lat, home_lng: settingsForm.lng }),
+    });
+    if (res.ok) {
+      setHome(settingsForm);
+      setSettingsOpen(false);
+      showToast("Settings saved");
+    } else {
+      showToast("Could not save settings");
+    }
+  }
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -350,6 +431,13 @@ export default function Calendar({ code, name }: { code: string; name: string })
               Code: <strong>{code}</strong>
               <button className="ghost-btn" type="button" onClick={copyLink}>Copy link</button>
             </div>
+            <button
+              className="ghost-btn settings-btn"
+              type="button"
+              onClick={() => { setSettingsForm(home); setSettingsOpen(true); }}
+            >
+              Settings
+            </button>
           </div>
           <span className="week-label">{weekLabel}</span>
           <button
@@ -433,6 +521,24 @@ export default function Calendar({ code, name }: { code: string; name: string })
                       <div className="ev-time">
                         {fmtTime(it.start_time)}–{fmtTime(it.end_time as string)} · available
                       </div>
+                    </div>
+                  );
+                })}
+
+                {needs.map((it) => {
+                  const travelMins = travelTimes[it.id];
+                  if (!travelMins) return null;
+                  const needTop = topFor(it.start_time);
+                  const blockH = (travelMins / 60) * HOUR_H;
+                  const blockTop = Math.max(0, needTop - blockH);
+                  const clippedH = needTop - blockTop;
+                  return (
+                    <div
+                      key={`tr-${it.id}`}
+                      className={"travel-block" + dim(it)}
+                      style={{ top: `${blockTop}px`, height: `${clippedH}px`, background: `${it.person_color}28`, borderColor: it.person_color }}
+                    >
+                      {clippedH >= 18 && <span className="travel-label">{travelMins} min</span>}
                     </div>
                   );
                 })}
@@ -612,6 +718,34 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 <button type="submit" className="primary">Save</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- Settings modal ---------------- */}
+      {settingsOpen && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setSettingsOpen(false); }}>
+          <div className="modal">
+            <h2>Settings</h2>
+            <label>
+              Home address
+              <LocationInput
+                value={settingsForm.address}
+                onChange={(v) => setSettingsForm({ address: v, lat: null, lng: null })}
+                onSelect={(address, lat, lng) => setSettingsForm({ address, lat, lng })}
+              />
+            </label>
+            {settingsForm.lat
+              ? <p className="modal-sub">Location confirmed — travel times will update automatically.</p>
+              : home.address
+                ? <p className="modal-sub">Type to search for a new address, or keep the current one.</p>
+                : <p className="modal-sub">Set your home address to see estimated drive times on the calendar.</p>
+            }
+            <div className="modal-actions">
+              <span className="spacer" />
+              <button type="button" className="ghost-btn" onClick={() => setSettingsOpen(false)}>Cancel</button>
+              <button type="button" className="primary" onClick={saveSettings}>Save</button>
+            </div>
           </div>
         </div>
       )}

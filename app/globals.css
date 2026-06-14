@@ -228,6 +228,15 @@ input:focus, select:focus, textarea:focus {
 
 .modal-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
 
+.travel-block {
+  position: absolute; left: 0; right: 0;
+  border-top: 2px dashed; z-index: 3; pointer-events: none;
+  display: flex; align-items: center; padding-left: 6px; overflow: hidden;
+}
+.travel-label { font-size: 10px; font-weight: 600; opacity: .75; white-space: nowrap; }
+
+.settings-btn { font-size: 12px; margin-left: 8px; }
+
 .location-input { position: relative; }
 .location-suggestions {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 200;

@@ -42,6 +42,9 @@ export type Plan = {
   id: number;
   code: string;
   name: string;
+  home_address: string;
+  home_lat: number | null;
+  home_lng: number | null;
 };
 
 export type Role = "driver" | "kid";
@@ -89,12 +92,18 @@ export function ensureSchema(): Promise<void> {
     schemaReady = (async () => {
       await sql`
         CREATE TABLE IF NOT EXISTS plans (
-          id          SERIAL PRIMARY KEY,
-          code        TEXT UNIQUE NOT NULL,
-          name        TEXT NOT NULL,
-          created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+          id           SERIAL PRIMARY KEY,
+          code         TEXT UNIQUE NOT NULL,
+          name         TEXT NOT NULL,
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+          home_address TEXT NOT NULL DEFAULT '',
+          home_lat     FLOAT,
+          home_lng     FLOAT
         )
       `;
+      await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS home_address TEXT NOT NULL DEFAULT ''`;
+      await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS home_lat FLOAT`;
+      await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS home_lng FLOAT`;
       await sql`
         CREATE TABLE IF NOT EXISTS people (
           id        SERIAL PRIMARY KEY,
@@ -134,7 +143,8 @@ export function ensureSchema(): Promise<void> {
 
 export async function getPlanByCode(code: string): Promise<Plan | null> {
   const { rows } = await sql<Plan>`
-    SELECT id, code, name FROM plans WHERE code = ${code.toUpperCase()}
+    SELECT id, code, name, home_address, home_lat, home_lng
+    FROM plans WHERE code = ${code.toUpperCase()}
   `;
   return rows[0] ?? null;
 }

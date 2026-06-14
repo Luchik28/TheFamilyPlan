@@ -37,7 +37,13 @@ export async function GET(req: Request, { params }: Params) {
     `;
 
     return NextResponse.json({
-      plan: { code: plan.code, name: plan.name },
+      plan: {
+        code: plan.code,
+        name: plan.name,
+        home_address: plan.home_address ?? "",
+        home_lat: plan.home_lat ?? null,
+        home_lng: plan.home_lng ?? null,
+      },
       week_start: start,
       items: rows,
     });
