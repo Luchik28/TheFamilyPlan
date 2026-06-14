@@ -140,6 +140,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const [now, setNow] = useState<Date>(() => new Date());
   const [home, setHome] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
   const [travelTimes, setTravelTimes] = useState<Record<number, number>>({});
+  const [travelOrigins, setTravelOrigins] = useState<Record<number, string>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
   const [drivesOpen, setDrivesOpen] = useState(false);
@@ -180,17 +181,17 @@ export default function Calendar({ code, name }: { code: string; name: string })
     return () => clearInterval(t);
   }, []);
 
-  // Fetch OSRM drive times for kid needs that have coordinates.
+  // Compute origin labels for all kid needs, and fetch OSRM for those without a saved time.
   useEffect(() => {
     const controller = new AbortController();
     async function compute() {
-      // Only fetch OSRM for needs that don't already have a saved travel time
-      const kidNeeds = items.filter((it) => it.person_role === "kid" && it.travel_mins === null);
+      const allKidNeeds = items.filter((it) => it.person_role === "kid");
       const routes: { id: number; oLat: number; oLng: number; dLat: number; dLng: number }[] = [];
+      const newOrigins: Record<number, string> = {};
 
-      // Group by kid+date so we can track each kid's location chain through the day
+      // Group ALL kid needs by kid+date to walk the location chain
       const groups = new Map<string, ScheduleItem[]>();
-      for (const it of kidNeeds) {
+      for (const it of allKidNeeds) {
         const key = `${it.person_id}:${it.event_date}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(it);
@@ -200,16 +201,28 @@ export default function Calendar({ code, name }: { code: string; name: string })
         group.sort((a, b) => minutesOf(a.start_time) - minutesOf(b.start_time));
         for (let i = 0; i < group.length; i++) {
           const it = group[i];
-          if (!it.lat || !it.lng) continue;
-          // Walk backwards to find the closest prior location with coordinates
+          // Walk backwards to find the nearest prior location with coordinates
           let oLat = home.lat;
           let oLng = home.lng;
+          let originLabel = home.address || "Home";
           for (let j = i - 1; j >= 0; j--) {
-            if (group[j].lat && group[j].lng) { oLat = group[j].lat; oLng = group[j].lng; break; }
+            if (group[j].lat && group[j].lng) {
+              oLat = group[j].lat; oLng = group[j].lng;
+              originLabel = group[j].location || "Previous stop";
+              break;
+            }
           }
-          if (oLat && oLng) routes.push({ id: it.id, oLat, oLng, dLat: it.lat, dLng: it.lng });
+          if (it.lat && it.lng && oLat && oLng) {
+            newOrigins[it.id] = originLabel;
+            // Only hit OSRM if no saved travel time
+            if (it.travel_mins === null) {
+              routes.push({ id: it.id, oLat, oLng, dLat: it.lat, dLng: it.lng });
+            }
+          }
         }
       }
+
+      setTravelOrigins(newOrigins);
 
       const results = await Promise.all(routes.map(async (r) => {
         try {
@@ -263,6 +276,47 @@ export default function Calendar({ code, name }: { code: string; name: string })
       }),
     };
   }, [items, weekStart, people, home, travelTimes]);
+
+  // Greedily assign available drivers to each drive, in chronological order.
+  const planAssignments = useMemo(() => {
+    const driverAvails = items.filter((it) => it.person_role === "driver");
+    // busy[driverId] = list of windows already committed to
+    const busy: Record<number, { date: string; startMins: number; endMins: number }[]> = {};
+
+    return plan.drives
+      .filter((d) => d.duration_mins > 0)
+      .map((drive) => {
+        const item = items.find((it) => it.id === drive.id);
+        if (!item) return { drive, driver: null };
+
+        const arrivalMins = minutesOf(drive.start_time);
+        const leaveMins = arrivalMins - drive.duration_mins;
+
+        // Find a driver available during [leaveMins, arrivalMins] on the same date
+        const eligible = driverAvails.filter((a) => {
+          if (a.event_date !== item.event_date) return false;
+          const s = minutesOf(a.start_time);
+          const e = minutesOf(a.end_time ?? a.start_time);
+          return s <= leaveMins && e >= arrivalMins;
+        });
+
+        let assigned: Person | null = null;
+        for (const avail of eligible) {
+          const windows = busy[avail.person_id] ?? [];
+          const blocked = windows.some(
+            (w) => w.date === item.event_date && w.startMins < arrivalMins && w.endMins > leaveMins
+          );
+          if (!blocked) {
+            assigned = people.find((p) => p.id === avail.person_id) ?? null;
+            if (!busy[avail.person_id]) busy[avail.person_id] = [];
+            busy[avail.person_id].push({ date: item.event_date, startMins: leaveMins, endMins: arrivalMins });
+            break;
+          }
+        }
+
+        return { drive, item, driver: assigned };
+      });
+  }, [plan.drives, items, people]);
 
   const selectedPerson = useMemo(
     () => people.find((p) => p.id === selectedId) ?? null,
@@ -584,14 +638,27 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   const blockH = (travelMins / 60) * HOUR_H;
                   const blockTop = Math.max(0, needTop - blockH);
                   const clippedH = needTop - blockTop;
+                  const leaveMins = minutesOf(it.start_time) - travelMins;
+                  const leaveStr = `${String(Math.floor(leaveMins / 60)).padStart(2, "0")}:${String(leaveMins % 60).padStart(2, "0")}`;
+                  const origin = travelOrigins[it.id];
                   return (
-                    <div
-                      key={`tr-${it.id}`}
-                      className={"travel-block" + dim(it)}
-                      style={{ top: `${blockTop}px`, height: `${clippedH}px`, background: `${it.person_color}28`, borderColor: it.person_color }}
-                    >
-                      {clippedH >= 18 && <span className="travel-label">{travelMins} min</span>}
-                    </div>
+                    <>
+                      <div
+                        key={`tr-${it.id}`}
+                        className={"travel-block" + dim(it)}
+                        style={{ top: `${blockTop}px`, height: `${clippedH}px`, background: `${it.person_color}28`, borderColor: it.person_color }}
+                      >
+                        {clippedH >= 18 && <span className="travel-label">{travelMins} min</span>}
+                      </div>
+                      {blockTop === needTop - blockH && origin && (
+                        <div key={`to-${it.id}`} className={"travel-origin" + dim(it)} style={{ top: `${blockTop}px` }}>
+                          <span className="need-dot" style={{ background: "transparent", border: `2px solid ${it.person_color}` }} />
+                          <span className="need-label" style={{ borderColor: it.person_color, opacity: 0.75 }}>
+                            <strong>{fmtTime(leaveStr)}</strong> leave · {origin}
+                          </span>
+                        </div>
+                      )}
+                    </>
                   );
                 })}
 
@@ -824,6 +891,52 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   );
                 })}
               </ul>
+            )}
+            {planAssignments.length > 0 && (
+              <>
+                <h3 className="plan-section-title">Driver plan</h3>
+                <ul className="drives-list">
+                  {planAssignments.map(({ drive, item, driver }) => {
+                    if (!item) return null;
+                    const leaveMins = minutesOf(drive.start_time) - drive.duration_mins;
+                    const leaveStr = `${String(Math.floor(leaveMins / 60)).padStart(2, "0")}:${String(leaveMins % 60).padStart(2, "0")}`;
+                    return (
+                      <li key={`pa-${drive.id}`} className="drive-row">
+                        <div className="drive-time">
+                          <span className="drive-date">{new Date(item.event_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
+                          <strong>{fmtTime(leaveStr)}</strong>
+                          <span className="drive-date">leave</span>
+                        </div>
+                        <div className="drive-detail">
+                          <div className="drive-who">
+                            {driver ? (
+                              <span className="drive-participant">
+                                <span className="person-dot" style={{ background: driver.color }} />
+                                {driver.name}
+                              </span>
+                            ) : (
+                              <span className="unassigned-badge">No driver available</span>
+                            )}
+                            <span className="drive-arrow">→</span>
+                            {drive.participants.map((p) => (
+                              <span key={p.id} className="drive-participant">
+                                <span className="person-dot" style={{ background: p.color }} />
+                                {p.name}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="drive-route">
+                            <span className="drive-loc">{drive.start_location}</span>
+                            <span className="drive-arrow">→</span>
+                            <span className="drive-loc">{drive.end_location}</span>
+                            <span className="drive-duration">{drive.duration_mins} min</span>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
             <div className="modal-actions">
               <span className="spacer" />

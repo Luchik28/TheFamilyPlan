@@ -234,6 +234,10 @@ input:focus, select:focus, textarea:focus {
   display: flex; align-items: center; padding-left: 6px; overflow: hidden;
 }
 .travel-label { font-size: 10px; font-weight: 600; opacity: .75; white-space: nowrap; }
+.travel-origin {
+  position: absolute; left: 0; right: 0; height: 0;
+  z-index: 4; display: flex; align-items: center; pointer-events: none;
+}
 
 .settings-btn { font-size: 12px; margin-left: 8px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -258,6 +262,8 @@ input:focus, select:focus, textarea:focus {
 .drive-loc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drive-arrow { color: var(--accent); font-weight: 700; }
 .drive-duration { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 600; margin-left: 4px; }
+.plan-section-title { font-size: 14px; font-weight: 700; margin: 18px 0 10px; color: var(--text); border-top: 1px solid var(--line); padding-top: 14px; }
+.unassigned-badge { font-size: 12px; color: #e5484d; font-weight: 600; }
 .field-hint { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
 
 .location-input { position: relative; }
