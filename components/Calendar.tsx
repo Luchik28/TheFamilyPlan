@@ -214,18 +214,28 @@ export default function Calendar({ code, name }: { code: string; name: string })
       setDragGhost(null);
       if (!person || person.role !== "driver") return;
       const finalEnd = isDragging ? endMins : Math.min(startMins + 60, DAY_END * 60);
-      setItemForm({
-        id: null,
-        person_id: person.id,
-        event_date: dateStr,
-        start_time: minsToTime(startMins),
-        end_time: minsToTime(finalEnd),
-        location: "",
-        lat: null,
-        lng: null,
-        travel_mins: null,
-        notes: "",
-        trip_type: "dropoff",
+      fetch(`/api/plan/${code}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          person_id: person.id,
+          event_date: dateStr,
+          start_time: minsToTime(startMins),
+          end_time: minsToTime(finalEnd),
+          location: "",
+          lat: null,
+          lng: null,
+          travel_mins: null,
+          notes: "",
+          trip_type: "dropoff",
+        }),
+      }).then(async (res) => {
+        if (res.ok) {
+          loadItems();
+          showToast("Added");
+        } else {
+          showToast((await res.json().catch(() => ({}))).error || "Could not save");
+        }
       });
     }
     window.addEventListener("mousemove", onMouseMove);
@@ -544,7 +554,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
     <div className="shell">
       {/* ---------------- Sidebar ---------------- */}
       <aside className="sidebar">
-        <Link href="/" className="brand">📅 The Family Plan</Link>
+        <Link href="/" className="brand">The Family Plan</Link>
 
         <p className="sidebar-hint">
           {selectedPerson
@@ -615,7 +625,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
         {toast && <div className="toast">{toast}</div>}
 
         <main
-          className={"calendar" + (selectedPerson ? " has-selection" : "") + (selectedPerson?.role === "kid" ? " kid-mode" : "")}
+          className={"calendar" + (selectedPerson ? " has-selection" : "") + (selectedPerson?.role === "kid" ? " kid-mode" : "") + (selectedPerson?.role === "driver" ? " driver-mode" : "")}
           style={selectedPerson?.role === "kid" ? { "--kid-color": selectedPerson.color } as React.CSSProperties : undefined}
         >
           <div className="corner" />
