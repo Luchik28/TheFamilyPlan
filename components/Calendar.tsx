@@ -216,10 +216,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
   // ---- schedule items ----------------------------------------------------- //
   function addForSelected(dateStr?: string, hour?: number, minute?: number) {
-    if (!selectedPerson) {
-      showToast("Pick a driver or kid on the left first");
-      return;
-    }
+    if (!selectedPerson) return;
     const h = hour ?? 9;
     const m = minute ?? 0;
     const startMins = h * 60 + m;
