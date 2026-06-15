@@ -172,6 +172,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = useRef<{ dateStr: string; startMins: number; startClientY: number; isDragging: boolean; endMins: number } | null>(null);
   const selectedPersonRef = useRef<Person | null>(null);
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -462,6 +463,64 @@ export default function Calendar({ code, name }: { code: string; name: string })
     [people, selectedId]
   );
   useEffect(() => { selectedPersonRef.current = selectedPerson; }, [selectedPerson]);
+
+  // Per-person, shareable weekly schedule derived from the planned trips.
+  const personSchedules = useMemo(() => {
+    type Entry = { date: string; timeMins: number; tripType: TripType; label: string; detail: string };
+    const map = new Map<number, Entry[]>();
+    const push = (pid: number, e: Entry) => { (map.get(pid) ?? map.set(pid, []).get(pid)!).push(e); };
+    const nameOf = (id: number) => people.find((p) => p.id === id)?.name ?? "—";
+    const locOf = (needId: number) => items.find((it) => it.id === needId)?.location || "";
+    const verb = (t: TripType) => (t === "pickup" ? "pick up" : "drop off");
+
+    for (const { date, trips } of weekTrips) {
+      for (const trip of trips) {
+        const driverName = trip.driverId != null ? nameOf(trip.driverId) : "no driver yet";
+        // Driver's view: one line for the whole (possibly pooled) trip.
+        if (trip.driverId != null) {
+          push(trip.driverId, {
+            date,
+            timeMins: trip.departMins,
+            tripType: trip.tripType,
+            label: `${verb(trip.tripType)} ${trip.stops.map((s) => nameOf(s.kidId)).join(", ")}`,
+            detail: trip.stops
+              .map((s) => `${fmtTime(minsToTime(s.atMins))}${locOf(s.needId) ? " " + locOf(s.needId) : ""}`)
+              .join("  ·  "),
+          });
+        }
+        // Each kid's view: their own stop, and who's driving.
+        for (const s of trip.stops) {
+          const loc = locOf(s.needId);
+          push(s.kidId, {
+            date,
+            timeMins: s.atMins,
+            tripType: trip.tripType,
+            label: `${fmtTime(minsToTime(s.atMins))} · ${verb(trip.tripType)}${loc ? ` · ${loc}` : ""}`,
+            detail: `with ${driverName}`,
+          });
+        }
+      }
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.date.localeCompare(b.date) || a.timeMins - b.timeMins);
+    }
+    return map;
+  }, [weekTrips, people, items]);
+
+  async function downloadSchedule(personId: number, personName: string) {
+    const node = cardRefs.current[personId];
+    if (!node) return;
+    try {
+      const { toPng } = await import("html-to-image");
+      const dataUrl = await toPng(node, { backgroundColor: "#ffffff", pixelRatio: 2 });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${personName.replace(/\s+/g, "-").toLowerCase()}-schedule.png`;
+      a.click();
+    } catch {
+      showToast("Could not create image");
+    }
+  }
   // Whose role the open item form is for (the entry's person).
   const formPerson = useMemo(
     () => people.find((p) => p.id === itemForm?.person_id) ?? null,
@@ -947,6 +1006,53 @@ export default function Calendar({ code, name }: { code: string; name: string })
             );
           })}
         </main>
+
+        {/* ---------------- Shareable per-person schedules ---------------- */}
+        {people.length > 0 && (
+          <section className="share-schedules">
+            <h2 className="share-title">Shareable schedules</h2>
+            <p className="modal-sub">Save anyone&apos;s week as an image to text or email them.</p>
+            <div className="schedule-grid">
+              {people.map((p) => {
+                const entries = personSchedules.get(p.id) ?? [];
+                return (
+                  <div key={p.id} className="schedule-card-wrap">
+                    <div className="schedule-card" ref={(el) => { cardRefs.current[p.id] = el; }}>
+                      <div className="schedule-card-head">
+                        <span className="person-dot" style={{ background: p.color }} />
+                        <span className="schedule-card-name">{p.name}</span>
+                        <span className="schedule-card-role">{p.role}</span>
+                      </div>
+                      <div className="schedule-card-week">{weekLabel}</div>
+                      {entries.length === 0 ? (
+                        <p className="schedule-empty">Nothing scheduled this week.</p>
+                      ) : (
+                        <ul className="schedule-entries">
+                          {entries.map((e, i) => {
+                            const prevDate = i > 0 ? entries[i - 1].date : null;
+                            const showDate = e.date !== prevDate;
+                            const dateLabel = new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+                            return (
+                              <li key={i} className="schedule-entry">
+                                {showDate && <div className="schedule-entry-date">{dateLabel}</div>}
+                                <div className="schedule-entry-label">{e.label}</div>
+                                {e.detail && <div className="schedule-entry-detail">{e.detail}</div>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                      <div className="schedule-card-foot">The Family Plan · {code}</div>
+                    </div>
+                    <button type="button" className="ghost-btn" onClick={() => downloadSchedule(p.id, p.name)}>
+                      Save image
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* ---------------- Person modal ---------------- */}
