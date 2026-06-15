@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  DEFAULT_TIERS,
   ScheduleItem,
   ScheduleItemWithPerson,
   ensureSchema,
@@ -43,6 +44,7 @@ export async function GET(req: Request, { params }: Params) {
         home_address: plan.home_address ?? "",
         home_lat: plan.home_lat ?? null,
         home_lng: plan.home_lng ?? null,
+        priority_tiers: plan.priority_tiers ?? DEFAULT_TIERS,
       },
       week_start: start,
       items: rows,

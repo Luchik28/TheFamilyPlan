@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LocationInput from "./LocationInput";
+import { fetchTableOracle, planDay, type LatLng, type Need, type Trip } from "@/lib/route";
+
+const DEFAULT_TIERS = [2, 1];
+
+// Resolve a person's effective tier index (role default when unset, clamped).
+function resolveTierIdx(tier: number | null | undefined, role: Role, tierCount: number): number {
+  const fallback = role === "driver" ? 0 : tierCount - 1;
+  const t = tier ?? fallback;
+  return Math.max(0, Math.min(tierCount - 1, t));
+}
 
 const DAY_START = 6; // grid starts at 06:00
 const DAY_END = 23; // grid ends at 23:00
@@ -13,6 +23,8 @@ const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const PALETTE = [
   "#4f7cff", "#e5484d", "#22a06b", "#f5a524", "#a855f7",
   "#0ea5e9", "#ec4899", "#14b8a6", "#f97316", "#6366f1",
+  "#84cc16", "#d946ef", "#06b6d4", "#fb923c", "#8b5cf6",
+  "#10b981", "#f43f5e", "#3b82f6", "#eab308", "#64748b",
 ];
 
 type Role = "driver" | "kid";
@@ -22,6 +34,7 @@ type Person = {
   name: string;
   role: Role;
   color: string;
+  tier: number | null;
 };
 
 // What should be in a "plan"
@@ -81,6 +94,7 @@ type PersonForm = {
   name: string;
   role: Role;
   color: string;
+  tier: number | null;
 };
 
 // ---- date helpers (local time) ------------------------------------------- //
@@ -147,6 +161,12 @@ export default function Calendar({ code, name }: { code: string; name: string })
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
   const [drivesOpen, setDrivesOpen] = useState(false);
+  const [priorityTiers, setPriorityTiers] = useState<number[]>(DEFAULT_TIERS);
+  // Trips computed by the carpool optimizer, grouped by date.
+  const [weekTrips, setWeekTrips] = useState<{ date: string; trips: Trip[] }[]>([]);
+  // Local editing state for the settings tier editor.
+  const [tiersForm, setTiersForm] = useState<number[]>(DEFAULT_TIERS);
+  const [tierAssign, setTierAssign] = useState<Record<number, number>>({});
   const [hoverGhost, setHoverGhost] = useState<{ dateStr: string; startMins: number } | null>(null);
   const [dragGhost, setDragGhost] = useState<{ dateStr: string; startMins: number; endMins: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -175,6 +195,9 @@ export default function Calendar({ code, name }: { code: string; name: string })
           lat: data.plan.home_lat ?? null,
           lng: data.plan.home_lng ?? null,
         });
+        if (Array.isArray(data.plan.priority_tiers) && data.plan.priority_tiers.length) {
+          setPriorityTiers(data.plan.priority_tiers);
+        }
       }
     } else {
       showToast("Failed to load schedule");
@@ -310,6 +333,98 @@ export default function Calendar({ code, name }: { code: string; name: string })
     return () => controller.abort();
   }, [items, home]);
 
+  // Carpool optimizer: build Needs (with chained origins), fetch one OSRM /table
+  // matrix for the week, and run planDay per date with tier-derived weights.
+  useEffect(() => {
+    const controller = new AbortController();
+    async function compute() {
+      if (home.lat == null || home.lng == null) { setWeekTrips([]); return; }
+      const homePt: LatLng = { lat: home.lat, lng: home.lng };
+
+      const kidNeeds = items.filter(
+        (it) => it.person_role === "kid" && it.lat != null && it.lng != null
+      );
+      if (kidNeeds.length === 0) { setWeekTrips([]); return; }
+
+      // Chained origin for a drop-off: the kid's previous drop-off location that
+      // day (if it has coords), else home.
+      const byKidDate = new Map<string, ScheduleItem[]>();
+      for (const it of kidNeeds) {
+        const k = `${it.person_id}:${it.event_date}`;
+        (byKidDate.get(k) ?? byKidDate.set(k, []).get(k)!).push(it);
+      }
+      for (const g of byKidDate.values()) g.sort((a, b) => minutesOf(a.start_time) - minutesOf(b.start_time));
+
+      const needs: (Need & { event_date: string })[] = [];
+      for (const g of byKidDate.values()) {
+        for (let i = 0; i < g.length; i++) {
+          const it = g[i];
+          const loc: LatLng = { lat: it.lat as number, lng: it.lng as number };
+          let origin = homePt;
+          if (it.trip_type !== "pickup") {
+            for (let j = i - 1; j >= 0; j--) {
+              if (g[j].lat != null && g[j].lng != null) {
+                origin = { lat: g[j].lat as number, lng: g[j].lng as number };
+                break;
+              }
+            }
+          }
+          needs.push({
+            id: it.id,
+            kidId: it.person_id,
+            event_date: it.event_date,
+            tripType: it.trip_type === "pickup" ? "pickup" : "dropoff",
+            // Drop-off: origin -> activity. Pick-up: activity -> home.
+            origin: it.trip_type === "pickup" ? loc : origin,
+            dest: it.trip_type === "pickup" ? homePt : loc,
+            deadlineMins: minutesOf(it.start_time),
+          });
+        }
+      }
+
+      // Unique points for the distance matrix.
+      const pts: LatLng[] = [];
+      const seen = new Set<string>();
+      for (const p of [homePt, ...needs.flatMap((n) => [n.origin, n.dest])]) {
+        const key = `${p.lat},${p.lng}`;
+        if (!seen.has(key)) { seen.add(key); pts.push(p); }
+      }
+
+      let oracle;
+      try {
+        oracle = await fetchTableOracle(pts, controller.signal);
+      } catch { return; }
+      if (controller.signal.aborted) return;
+
+      const tierCount = priorityTiers.length;
+      const weightOf = (personId: number) => {
+        const p = people.find((x) => x.id === personId);
+        const idx = resolveTierIdx(p?.tier, p?.role ?? "kid", tierCount);
+        return priorityTiers[idx] ?? 1;
+      };
+      const driverWeight = priorityTiers[0] ?? 1; // drivers default to the top tier
+
+      const dates = Array.from(new Set(needs.map((n) => n.event_date)));
+      const result: { date: string; trips: Trip[] }[] = [];
+      for (const date of dates) {
+        const dayNeeds = needs.filter((n) => n.event_date === date);
+        const avails = items
+          .filter((it) => it.person_role === "driver" && it.event_date === date && it.end_time)
+          .map((a) => ({
+            driverId: a.person_id,
+            startMins: minutesOf(a.start_time),
+            endMins: minutesOf(a.end_time as string),
+          }));
+        const trips = planDay({ needs: dayNeeds, drivers: avails, weightOf, driverWeight, travel: oracle });
+        if (trips.length) result.push({ date, trips });
+      }
+      result.sort((a, b) => a.date.localeCompare(b.date));
+      setWeekTrips(result);
+    }
+    compute();
+    return () => controller.abort();
+  }, [items, home, people, priorityTiers]);
+
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
@@ -342,47 +457,6 @@ export default function Calendar({ code, name }: { code: string; name: string })
     };
   }, [items, weekStart, people, home, travelTimes]);
 
-  // Greedily assign available drivers to each drive, in chronological order.
-  const planAssignments = useMemo(() => {
-    const driverAvails = items.filter((it) => it.person_role === "driver");
-    // busy[driverId] = list of windows already committed to
-    const busy: Record<number, { date: string; startMins: number; endMins: number }[]> = {};
-
-    return plan.drives
-      .filter((d) => d.duration_mins > 0)
-      .map((drive) => {
-        const item = items.find((it) => it.id === drive.id);
-        if (!item) return { drive, driver: null };
-
-        const arrivalMins = minutesOf(drive.start_time);
-        const leaveMins = arrivalMins - drive.duration_mins;
-
-        // Find a driver available during [leaveMins, arrivalMins] on the same date
-        const eligible = driverAvails.filter((a) => {
-          if (a.event_date !== item.event_date) return false;
-          const s = minutesOf(a.start_time);
-          const e = minutesOf(a.end_time ?? a.start_time);
-          return s <= leaveMins && e >= arrivalMins;
-        });
-
-        let assigned: Person | null = null;
-        for (const avail of eligible) {
-          const windows = busy[avail.person_id] ?? [];
-          const blocked = windows.some(
-            (w) => w.date === item.event_date && w.startMins < arrivalMins && w.endMins > leaveMins
-          );
-          if (!blocked) {
-            assigned = people.find((p) => p.id === avail.person_id) ?? null;
-            if (!busy[avail.person_id]) busy[avail.person_id] = [];
-            busy[avail.person_id].push({ date: item.event_date, startMins: leaveMins, endMins: arrivalMins });
-            break;
-          }
-        }
-
-        return { drive, item, driver: assigned };
-      });
-  }, [plan.drives, items, people]);
-
   const selectedPerson = useMemo(
     () => people.find((p) => p.id === selectedId) ?? null,
     [people, selectedId]
@@ -408,15 +482,15 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
   // ---- people management -------------------------------------------------- //
   function openNewPerson(role: Role) {
-    setPersonForm({ id: null, name: "", role, color: PALETTE[people.length % PALETTE.length] });
+    setPersonForm({ id: null, name: "", role, color: PALETTE[people.length % PALETTE.length], tier: null });
   }
   function openEditPerson(p: Person) {
-    setPersonForm({ id: p.id, name: p.name, role: p.role, color: p.color });
+    setPersonForm({ id: p.id, name: p.name, role: p.role, color: p.color, tier: p.tier });
   }
   async function submitPerson(e: React.FormEvent) {
     e.preventDefault();
     if (!personForm) return;
-    const payload = { name: personForm.name.trim(), role: personForm.role, color: personForm.color };
+    const payload = { name: personForm.name.trim(), role: personForm.role, color: personForm.color, tier: personForm.tier };
     const url = personForm.id
       ? `/api/plan/${code}/people/${personForm.id}`
       : `/api/plan/${code}/people`;
@@ -526,19 +600,85 @@ export default function Calendar({ code, name }: { code: string; name: string })
     } else showToast("Could not delete");
   }
 
+  function openSettings() {
+    setSettingsForm(home);
+    setTiersForm(priorityTiers);
+    // Seed each person's tier from their resolved (role-defaulted) index.
+    const assign: Record<number, number> = {};
+    for (const p of people) assign[p.id] = resolveTierIdx(p.tier, p.role, priorityTiers.length);
+    setTierAssign(assign);
+    setSettingsOpen(true);
+  }
+
   async function saveSettings() {
+    const tiers = tiersForm.length ? tiersForm : DEFAULT_TIERS;
     const res = await fetch(`/api/plan/${code}/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ home_address: settingsForm.address, home_lat: settingsForm.lat, home_lng: settingsForm.lng }),
+      body: JSON.stringify({
+        home_address: settingsForm.address,
+        home_lat: settingsForm.lat,
+        home_lng: settingsForm.lng,
+        priority_tiers: tiers,
+      }),
     });
-    if (res.ok) {
-      setHome(settingsForm);
-      setSettingsOpen(false);
-      showToast("Settings saved");
-    } else {
-      showToast("Could not save settings");
-    }
+    if (!res.ok) { showToast("Could not save settings"); return; }
+
+    // Persist any changed per-person tier assignments.
+    const changed = people.filter((p) => {
+      const next = Math.min(tierAssign[p.id] ?? 0, tiers.length - 1);
+      const current = resolveTierIdx(p.tier, p.role, priorityTiers.length);
+      return next !== current;
+    });
+    await Promise.all(
+      changed.map((p) =>
+        fetch(`/api/plan/${code}/people/${p.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: p.name,
+            role: p.role,
+            color: p.color,
+            tier: Math.min(tierAssign[p.id] ?? 0, tiers.length - 1),
+          }),
+        })
+      )
+    );
+
+    setHome(settingsForm);
+    setPriorityTiers(tiers);
+    setSettingsOpen(false);
+    showToast("Settings saved");
+    loadPeople();
+  }
+
+  // ---- tier editor helpers ------------------------------------------------ //
+  function addTier() {
+    setTiersForm((t) => [...t, 1]);
+  }
+  function removeTier(idx: number) {
+    setTiersForm((t) => (t.length <= 1 ? t : t.filter((_, i) => i !== idx)));
+    // Shift assignments: anyone in/after the removed tier moves up one, clamped.
+    setTierAssign((a) => {
+      const next: Record<number, number> = {};
+      const newCount = Math.max(1, tiersForm.length - 1);
+      for (const [id, ti] of Object.entries(a)) {
+        let v = ti >= idx ? ti - 1 : ti;
+        v = Math.max(0, Math.min(newCount - 1, v));
+        next[Number(id)] = v;
+      }
+      return next;
+    });
+  }
+  function setTierWeight(idx: number, value: number) {
+    setTiersForm((t) => t.map((w, i) => (i === idx ? value : w)));
+  }
+  function movePerson(personId: number, delta: number) {
+    setTierAssign((a) => {
+      const cur = a[personId] ?? 0;
+      const next = Math.max(0, Math.min(tiersForm.length - 1, cur + delta));
+      return { ...a, [personId]: next };
+    });
   }
 
   async function copyLink() {
@@ -601,7 +741,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
             <button
               className="ghost-btn settings-btn"
               type="button"
-              onClick={() => { setSettingsForm(home); setSettingsOpen(true); }}
+              onClick={openSettings}
             >
               Settings
             </button>
@@ -834,14 +974,29 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     <option value="kid">Kid</option>
                   </select>
                 </label>
-                <label>
-                  Color
-                  <input
-                    type="color"
-                    value={personForm.color}
-                    onChange={(e) => setPersonForm({ ...personForm, color: e.target.value })}
-                  />
-                </label>
+                <div className="color-field">
+                  <span className="field-label">Color</span>
+                  <div className="color-swatches">
+                    {PALETTE.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={"color-swatch" + (personForm.color === c ? " selected" : "")}
+                        style={{ background: c }}
+                        onClick={() => setPersonForm({ ...personForm, color: c })}
+                      />
+                    ))}
+                    <label className="color-swatch custom-swatch" style={{ background: PALETTE.includes(personForm.color) ? "#e2e8f0" : personForm.color }} title="Custom color">
+                      <span style={{ color: PALETTE.includes(personForm.color) ? "#64748b" : "#fff", fontSize: 14, lineHeight: 1 }}>+</span>
+                      <input
+                        type="color"
+                        value={personForm.color}
+                        onChange={(e) => setPersonForm({ ...personForm, color: e.target.value })}
+                        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
               <div className="modal-actions">
                 {personForm.id && (
@@ -1011,49 +1166,56 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 })}
               </ul>
             )}
-            {planAssignments.length > 0 && (
+            {weekTrips.length > 0 && (
               <>
                 <h3 className="plan-section-title">Driver plan</h3>
                 <ul className="drives-list">
-                  {planAssignments.map(({ drive, item, driver }) => {
-                    if (!item) return null;
-                    const leaveMins = minutesOf(drive.start_time) - drive.duration_mins;
-                    const leaveStr = `${String(Math.floor(leaveMins / 60)).padStart(2, "0")}:${String(leaveMins % 60).padStart(2, "0")}`;
-                    return (
-                      <li key={`pa-${drive.id}`} className="drive-row">
-                        <div className="drive-time">
-                          <span className="drive-date">{new Date(item.event_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</span>
-                          <strong>{fmtTime(leaveStr)}</strong>
-                          <span className="drive-date">leave</span>
-                        </div>
-                        <div className="drive-detail">
-                          <div className="drive-who">
-                            {driver ? (
-                              <span className="drive-participant">
-                                <span className="person-dot" style={{ background: driver.color }} />
-                                {driver.name}
-                              </span>
-                            ) : (
-                              <span className="unassigned-badge">No driver available</span>
-                            )}
-                            <span className="drive-arrow">→</span>
-                            {drive.participants.map((p) => (
-                              <span key={p.id} className="drive-participant">
-                                <span className="person-dot" style={{ background: p.color }} />
-                                {p.name}
-                              </span>
-                            ))}
+                  {weekTrips.flatMap(({ date, trips }) =>
+                    trips.map((trip, ti) => {
+                      const driver = trip.driverId != null ? people.find((p) => p.id === trip.driverId) : null;
+                      const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+                      return (
+                        <li key={`${date}-${ti}`} className="drive-row">
+                          <div className="drive-time">
+                            <span className="drive-date">{dateLabel}</span>
+                            <strong>{fmtTime(minsToTime(trip.departMins))}</strong>
+                            <span className="drive-date">leave</span>
                           </div>
-                          <div className="drive-route">
-                            <span className="drive-loc">{drive.start_location}</span>
-                            <span className="drive-arrow">→</span>
-                            <span className="drive-loc">{drive.end_location}</span>
-                            <span className="drive-duration">{drive.duration_mins} min</span>
+                          <div className="drive-detail">
+                            <div className="drive-who">
+                              {driver ? (
+                                <span className="drive-participant">
+                                  <span className="person-dot" style={{ background: driver.color }} />
+                                  {driver.name}
+                                </span>
+                              ) : (
+                                <span className="unassigned-badge">No driver available</span>
+                              )}
+                              <span className="drive-type">{trip.tripType === "pickup" ? "pick up" : "drop off"}</span>
+                              {trip.stops.length > 1 && (
+                                <span className="pool-badge">carpool ×{trip.stops.length}</span>
+                              )}
+                            </div>
+                            <div className="drive-route">
+                              {trip.stops.map((s, si) => {
+                                const kid = people.find((p) => p.id === s.kidId);
+                                const it = items.find((x) => x.id === s.needId);
+                                return (
+                                  <span key={s.needId} className="pool-stop">
+                                    {si > 0 && <span className="drive-arrow">→</span>}
+                                    <span className="person-dot" style={{ background: kid?.color }} />
+                                    <span className="drive-loc">{it?.location || "—"}</span>
+                                    <span className="drive-stop-time">{fmtTime(minsToTime(s.atMins))}</span>
+                                  </span>
+                                );
+                              })}
+                              <span className="drive-duration">{trip.driverCommittedMins} min driving</span>
+                            </div>
                           </div>
-                        </div>
-                      </li>
-                    );
-                  })}
+                        </li>
+                      );
+                    })
+                  )}
                 </ul>
               </>
             )}
@@ -1068,7 +1230,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       {/* ---------------- Settings modal ---------------- */}
       {settingsOpen && (
         <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setSettingsOpen(false); }}>
-          <div className="modal">
+          <div className="modal modal-wide">
             <h2>Settings</h2>
             <label>
               Home address
@@ -1084,6 +1246,66 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 ? <p className="modal-sub">Type to search for a new address, or keep the current one.</p>
                 : <p className="modal-sub">Set your home address to see estimated drive times on the calendar.</p>
             }
+
+            <h3 className="plan-section-title">Priority</h3>
+            <p className="modal-sub">
+              Higher tiers have their time protected first. The weight is how much
+              a minute of that tier&apos;s time counts when balancing carpools.
+            </p>
+            <div className="tier-editor">
+              {tiersForm.map((weight, idx) => {
+                const members = people.filter((p) => Math.min(tierAssign[p.id] ?? 0, tiersForm.length - 1) === idx);
+                return (
+                  <div key={idx} className="tier-row">
+                    <div className="tier-head">
+                      <span className="tier-name">
+                        Tier {idx + 1}{idx === 0 ? " · highest" : ""}
+                      </span>
+                      <label className="tier-weight">
+                        weight
+                        <input
+                          type="number"
+                          min={0.1}
+                          step={0.5}
+                          value={weight}
+                          onChange={(e) => setTierWeight(idx, Number(e.target.value))}
+                        />
+                      </label>
+                      {tiersForm.length > 1 && (
+                        <button type="button" className="ghost-btn tier-remove" onClick={() => removeTier(idx)}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="tier-members">
+                      {members.length === 0 && <span className="tier-empty">No one here</span>}
+                      {members.map((p) => (
+                        <span key={p.id} className="tier-chip">
+                          <span className="person-dot" style={{ background: p.color }} />
+                          <span className="tier-chip-name">{p.name}</span>
+                          <button
+                            type="button"
+                            className="tier-move"
+                            title="Higher priority"
+                            disabled={idx === 0}
+                            onClick={() => movePerson(p.id, -1)}
+                          >▲</button>
+                          <button
+                            type="button"
+                            className="tier-move"
+                            title="Lower priority"
+                            disabled={idx === tiersForm.length - 1}
+                            onClick={() => movePerson(p.id, +1)}
+                          >▼</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <button type="button" className="ghost-btn" onClick={addTier}>+ Add tier</button>
+            </div>
+
             <div className="modal-actions">
               <span className="spacer" />
               <button type="button" className="ghost-btn" onClick={() => setSettingsOpen(false)}>Cancel</button>

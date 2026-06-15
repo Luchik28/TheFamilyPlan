@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: Params) {
     if (!plan) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     const { rows } = await sql<Person>`
-      SELECT id, plan_id, name, role, color
+      SELECT id, plan_id, name, role, color, tier
       FROM people WHERE plan_id = ${plan.id}
       ORDER BY role, name
     `;
@@ -38,15 +38,17 @@ export async function POST(req: Request, { params }: Params) {
     const check = validatePerson(data);
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
 
+    const tier = Number.isInteger(data.tier) ? Number(data.tier) : null;
     const { rows } = await sql<Person>`
-      INSERT INTO people (plan_id, name, role, color)
+      INSERT INTO people (plan_id, name, role, color, tier)
       VALUES (
         ${plan.id},
         ${data.name.trim()},
         ${data.role},
-        ${data.color || "#4f7cff"}
+        ${data.color || "#4f7cff"},
+        ${tier}
       )
-      RETURNING id, plan_id, name, role, color
+      RETURNING id, plan_id, name, role, color, tier
     `;
     return NextResponse.json(rows[0], { status: 201 });
   } catch (err) {

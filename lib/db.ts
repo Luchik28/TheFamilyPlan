@@ -45,7 +45,13 @@ export type Plan = {
   home_address: string;
   home_lat: number | null;
   home_lng: number | null;
+  // Ordered priority tiers (index 0 = highest priority). Each value is the
+  // weight applied to that tier's members' committed time during planning.
+  // Default: drivers (tier 0, weight 2) ranked above kids (tier 1, weight 1).
+  priority_tiers: number[];
 };
+
+export const DEFAULT_TIERS = [2, 1];
 
 export type Role = "driver" | "kid";
 
@@ -55,6 +61,9 @@ export type Person = {
   name: string;
   role: Role;
   color: string;
+  // Index into the plan's priority_tiers. null = use the role default
+  // (drivers -> tier 0, kids -> the lowest tier).
+  tier: number | null;
 };
 
 // A schedule item belongs to a person. For a KID it's a "need": a point in
@@ -105,6 +114,7 @@ export function ensureSchema(): Promise<void> {
       await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS home_address TEXT NOT NULL DEFAULT ''`;
       await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS home_lat FLOAT`;
       await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS home_lng FLOAT`;
+      await sql`ALTER TABLE plans ADD COLUMN IF NOT EXISTS priority_tiers JSONB NOT NULL DEFAULT '[2,1]'::jsonb`;
       await sql`
         CREATE TABLE IF NOT EXISTS people (
           id        SERIAL PRIMARY KEY,
@@ -114,6 +124,7 @@ export function ensureSchema(): Promise<void> {
           color     TEXT NOT NULL DEFAULT '#4f7cff'
         )
       `;
+      await sql`ALTER TABLE people ADD COLUMN IF NOT EXISTS tier INTEGER`;
       await sql`
         CREATE TABLE IF NOT EXISTS schedule_items (
           id          SERIAL PRIMARY KEY,
@@ -145,7 +156,7 @@ export function ensureSchema(): Promise<void> {
 
 export async function getPlanByCode(code: string): Promise<Plan | null> {
   const { rows } = await sql<Plan>`
-    SELECT id, code, name, home_address, home_lat, home_lng
+    SELECT id, code, name, home_address, home_lat, home_lng, priority_tiers
     FROM plans WHERE code = ${code.toUpperCase()}
   `;
   return rows[0] ?? null;
@@ -156,8 +167,20 @@ export async function getPersonInPlan(
   personId: number
 ): Promise<Person | null> {
   const { rows } = await sql<Person>`
-    SELECT id, plan_id, name, role, color
+    SELECT id, plan_id, name, role, color, tier
     FROM people WHERE id = ${personId} AND plan_id = ${planId}
   `;
   return rows[0] ?? null;
+}
+
+// Resolve a person's effective tier index, applying the role default when unset
+// and clamping into the valid range (tiers can be removed after assignment).
+export function resolveTier(
+  tier: number | null,
+  role: Role,
+  tierCount: number
+): number {
+  const fallback = role === "driver" ? 0 : tierCount - 1;
+  const t = tier ?? fallback;
+  return Math.max(0, Math.min(tierCount - 1, t));
 }

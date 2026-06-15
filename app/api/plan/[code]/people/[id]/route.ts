@@ -18,13 +18,15 @@ export async function PUT(req: Request, { params }: Params) {
     const check = validatePerson(data);
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
 
+    const tier = Number.isInteger(data.tier) ? Number(data.tier) : null;
     const { rows } = await sql<Person>`
       UPDATE people SET
         name = ${data.name.trim()},
         role = ${data.role},
-        color = ${data.color || "#4f7cff"}
+        color = ${data.color || "#4f7cff"},
+        tier = ${tier}
       WHERE id = ${Number(id)} AND plan_id = ${plan.id}
-      RETURNING id, plan_id, name, role, color
+      RETURNING id, plan_id, name, role, color, tier
     `;
     if (rows.length === 0) {
       return NextResponse.json({ error: "person not found" }, { status: 404 });
