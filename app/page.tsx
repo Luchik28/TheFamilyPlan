@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import LocationInput from "@/components/LocationInput";
 
 export default function Home() {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [home, setHome] = useState<{ address: string; lat: number | null; lng: number | null }>({ address: "", lat: null, lng: null });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +34,12 @@ export default function Home() {
     const res = await fetch("/api/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
+      body: JSON.stringify({
+        name: name.trim(),
+        home_address: home.address.trim(),
+        home_lat: home.lat,
+        home_lng: home.lng,
+      }),
     });
     setBusy(false);
     if (res.ok) {
@@ -76,7 +83,7 @@ export default function Home() {
       <section className="panel">
         <h2>Create a new family</h2>
         <p>Start a fresh calendar and get a code to share.</p>
-        <form onSubmit={create} className="inline-form">
+        <form onSubmit={create} className="stacked-form">
           <input
             type="text"
             value={name}
@@ -84,6 +91,13 @@ export default function Home() {
             placeholder="Family name (e.g. The Smiths)"
             maxLength={60}
           />
+          <label className="field-label">What&apos;s your home address?</label>
+          <LocationInput
+            value={home.address}
+            onChange={(v) => setHome({ address: v, lat: null, lng: null })}
+            onSelect={(address, lat, lng) => setHome({ address, lat, lng })}
+          />
+          <span className="field-hint">Used as the starting point for drives. You can change it later in settings.</span>
           <button type="submit" className="primary" disabled={busy}>
             Create
           </button>

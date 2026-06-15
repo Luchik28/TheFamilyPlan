@@ -1130,45 +1130,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
         <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setDrivesOpen(false); }}>
           <div className="modal modal-wide">
             <h2>Drives this week</h2>
-            {plan.drives.length === 0 ? (
-              <p className="modal-sub">No kid needs scheduled yet — add some from the calendar.</p>
+            {weekTrips.length === 0 ? (
+              <p className="modal-sub">No drives planned yet — add driver availability and kid drop-offs/pick-ups from the calendar.</p>
             ) : (
-              <ul className="drives-list">
-                {plan.drives.map((drive) => {
-                  const item = items.find((it) => it.id === drive.id);
-                  return (
-                    <li key={drive.id} className="drive-row">
-                      <div className="drive-time">
-                        <span className="drive-date">{item ? new Date(item.event_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : ""}</span>
-                        <strong>{fmtTime(drive.start_time)}</strong>
-                      </div>
-                      <div className="drive-detail">
-                        <div className="drive-who">
-                          {drive.participants.map((p) => (
-                            <span key={p.id} className="drive-participant">
-                              <span className="person-dot" style={{ background: p.color }} />
-                              {p.name}
-                            </span>
-                          ))}
-                          {item && <span className="drive-type">{item.trip_type === "pickup" ? "pick up" : "drop off"}</span>}
-                        </div>
-                        <div className="drive-route">
-                          <span className="drive-loc">{drive.start_location}</span>
-                          <span className="drive-arrow">→</span>
-                          <span className="drive-loc">{drive.end_location}</span>
-                          {drive.duration_mins > 0 && (
-                            <span className="drive-duration">{drive.duration_mins} min</span>
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {weekTrips.length > 0 && (
               <>
-                <h3 className="plan-section-title">Driver plan</h3>
                 <ul className="drives-list">
                   {weekTrips.flatMap(({ date, trips }) =>
                     trips.map((trip, ti) => {

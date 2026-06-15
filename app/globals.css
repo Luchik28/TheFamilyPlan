@@ -70,6 +70,9 @@ input:focus, select:focus, textarea:focus {
 .inline-form { display: flex; gap: 8px; }
 .inline-form input { flex: 1; }
 .inline-form button { white-space: nowrap; }
+.stacked-form { display: flex; flex-direction: column; gap: 8px; }
+.stacked-form .field-label { font-size: 13px; font-weight: 600; color: var(--ink); margin-top: 4px; }
+.stacked-form button { margin-top: 6px; }
 .divider { text-align: center; position: relative; margin: 24px 0; color: var(--muted); }
 .divider::before {
   content: ""; position: absolute; top: 50%; left: 0; right: 0;
