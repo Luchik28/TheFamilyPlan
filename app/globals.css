@@ -252,7 +252,7 @@ input:focus, select:focus, textarea:focus {
 .color-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .color-swatch {
   width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent;
-  cursor: pointer; padding: 0; flex-shrink: 0; position: relative;
+  cursor: pointer; padding: 0; flex: 0 0 auto; position: relative;
   transition: transform .1s;
 }
 .color-swatch:hover { transform: scale(1.15); }

@@ -19,12 +19,11 @@ const DAY_END = 23; // grid ends at 23:00
 const HOUR_H = 48; // px per hour — must match .calendar --hour-h
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// A palette to suggest colors for new people.
+// A palette of visually distinct colors to choose from for people.
 const PALETTE = [
-  "#4f7cff", "#e5484d", "#22a06b", "#f5a524", "#a855f7",
-  "#0ea5e9", "#ec4899", "#14b8a6", "#f97316", "#6366f1",
-  "#84cc16", "#d946ef", "#06b6d4", "#fb923c", "#8b5cf6",
-  "#10b981", "#f43f5e", "#3b82f6", "#eab308", "#64748b",
+  "#4f7cff", "#0ea5e9", "#06b6d4", "#14b8a6", "#22a06b",
+  "#84cc16", "#eab308", "#f97316", "#e5484d", "#ec4899",
+  "#d946ef", "#a855f7", "#6366f1", "#64748b", "#78716c",
 ];
 
 type Role = "driver" | "kid";
@@ -1069,20 +1068,19 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   onChange={(e) => setPersonForm({ ...personForm, name: e.target.value })}
                 />
               </label>
-              <div className="row">
-                <label>
-                  Role
-                  <select
-                    value={personForm.role}
-                    onChange={(e) => setPersonForm({ ...personForm, role: e.target.value as Role })}
-                  >
-                    <option value="driver">Driver</option>
-                    <option value="kid">Kid</option>
-                  </select>
-                </label>
-                <div className="color-field">
-                  <span className="field-label">Color</span>
-                  <div className="color-swatches">
+              <label>
+                Role
+                <select
+                  value={personForm.role}
+                  onChange={(e) => setPersonForm({ ...personForm, role: e.target.value as Role })}
+                >
+                  <option value="driver">Driver</option>
+                  <option value="kid">Kid</option>
+                </select>
+              </label>
+              <div className="color-field">
+                <span className="field-label">Color</span>
+                <div className="color-swatches">
                     {PALETTE.map((c) => (
                       <button
                         key={c}
@@ -1103,7 +1101,6 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     </label>
                   </div>
                 </div>
-              </div>
               <div className="modal-actions">
                 {personForm.id && (
                   <button type="button" className="danger" onClick={deletePerson}>Remove</button>
