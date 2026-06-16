@@ -271,8 +271,17 @@ input:focus, select:focus, textarea:focus {
   opacity: 0; padding: 0; border: 0; cursor: pointer;
 }
 
-.settings-btn { font-size: 12px; margin-left: 8px; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  border: none; background: transparent; color: var(--muted);
+}
+.icon-btn:hover { background: #f0f3fb; color: var(--ink); }
+.settings-btn { margin-left: 4px; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
+.invite-row { display: flex; align-items: center; gap: 10px; }
+.invite-code { font-size: 14px; color: var(--muted); }
+.invite-code strong { color: var(--ink); letter-spacing: 1px; }
 .drives-badge {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent); color: #fff; border-radius: 10px;
@@ -295,6 +304,7 @@ input:focus, select:focus, textarea:focus {
 .drive-arrow { color: var(--accent); font-weight: 700; }
 .drive-duration { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 600; margin-left: 4px; }
 .plan-section-title { font-size: 14px; font-weight: 700; margin: 18px 0 10px; color: var(--text); border-top: 1px solid var(--line); padding-top: 14px; }
+.plan-section-title.first { border-top: none; padding-top: 0; margin-top: 8px; }
 .unassigned-badge { font-size: 12px; color: #e5484d; font-weight: 600; }
 
 /* Pooled carpool trips in the driver plan. */
