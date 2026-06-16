@@ -1091,12 +1091,12 @@ export default function Calendar({ code, name }: { code: string; name: string })
                       />
                     ))}
                     <label className="color-swatch custom-swatch" style={{ background: PALETTE.includes(personForm.color) ? "#e2e8f0" : personForm.color }} title="Custom color">
-                      <span style={{ color: PALETTE.includes(personForm.color) ? "#64748b" : "#fff", fontSize: 14, lineHeight: 1 }}>+</span>
+                      <span className="custom-plus" style={{ color: PALETTE.includes(personForm.color) ? "#64748b" : "#fff" }}>+</span>
                       <input
                         type="color"
-                        value={personForm.color}
+                        className="custom-color-input"
+                        value={personForm.color} //set to current color, even if custom, so the picker opens with the right color selected
                         onChange={(e) => setPersonForm({ ...personForm, color: e.target.value })}
-                        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
                       />
                     </label>
                   </div>
