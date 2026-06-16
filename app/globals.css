@@ -211,6 +211,9 @@ input:focus, select:focus, textarea:focus {
 .avail:hover { filter: brightness(0.97); }
 .avail .ev-title { font-weight: 700; line-height: 1.2; }
 .avail .ev-time { font-size: 11px; opacity: .85; }
+/* When greyed out, the time/"available" line is too faint to read — drop it,
+   keep just the name. */
+.avail.dim .ev-time { display: none; }
 
 /* Kid "need" — a point in time: a line + dot + label pill. */
 .need {
@@ -299,11 +302,9 @@ input:focus, select:focus, textarea:focus {
 .drive-stop-time { font-size: 11px; color: var(--muted); }
 
 /* Shareable per-person schedule cards (bottom of the plan page). */
-.share-schedules { padding: 24px 22px 60px; }
-.share-title { font-size: 18px; margin: 0; }
 .schedule-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px; margin-top: 14px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px; margin-top: 10px;
 }
 .schedule-card-wrap { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .schedule-card {

@@ -1005,53 +1005,6 @@ export default function Calendar({ code, name }: { code: string; name: string })
             );
           })}
         </main>
-
-        {/* ---------------- Shareable per-person schedules ---------------- */}
-        {people.length > 0 && (
-          <section className="share-schedules">
-            <h2 className="share-title">Shareable schedules</h2>
-            <p className="modal-sub">Save anyone&apos;s week as an image to text or email them.</p>
-            <div className="schedule-grid">
-              {people.map((p) => {
-                const entries = personSchedules.get(p.id) ?? [];
-                return (
-                  <div key={p.id} className="schedule-card-wrap">
-                    <div className="schedule-card" ref={(el) => { cardRefs.current[p.id] = el; }}>
-                      <div className="schedule-card-head">
-                        <span className="person-dot" style={{ background: p.color }} />
-                        <span className="schedule-card-name">{p.name}</span>
-                        <span className="schedule-card-role">{p.role}</span>
-                      </div>
-                      <div className="schedule-card-week">{weekLabel}</div>
-                      {entries.length === 0 ? (
-                        <p className="schedule-empty">Nothing scheduled this week.</p>
-                      ) : (
-                        <ul className="schedule-entries">
-                          {entries.map((e, i) => {
-                            const prevDate = i > 0 ? entries[i - 1].date : null;
-                            const showDate = e.date !== prevDate;
-                            const dateLabel = new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-                            return (
-                              <li key={i} className="schedule-entry">
-                                {showDate && <div className="schedule-entry-date">{dateLabel}</div>}
-                                <div className="schedule-entry-label">{e.label}</div>
-                                {e.detail && <div className="schedule-entry-detail">{e.detail}</div>}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                      <div className="schedule-card-foot">The Family Plan · {code}</div>
-                    </div>
-                    <button type="button" className="ghost-btn" onClick={() => downloadSchedule(p.id, p.name)}>
-                      Save image
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
       </div>
 
       {/* ---------------- Person modal ---------------- */}
@@ -1287,6 +1240,53 @@ export default function Calendar({ code, name }: { code: string; name: string })
                 </ul>
               </>
             )}
+
+            {people.length > 0 && (
+              <>
+                <h3 className="plan-section-title">Shareable schedules</h3>
+                <p className="modal-sub">Save anyone&apos;s week as an image to text or email them.</p>
+                <div className="schedule-grid">
+                  {people.map((p) => {
+                    const entries = personSchedules.get(p.id) ?? [];
+                    return (
+                      <div key={p.id} className="schedule-card-wrap">
+                        <div className="schedule-card" ref={(el) => { cardRefs.current[p.id] = el; }}>
+                          <div className="schedule-card-head">
+                            <span className="person-dot" style={{ background: p.color }} />
+                            <span className="schedule-card-name">{p.name}</span>
+                            <span className="schedule-card-role">{p.role}</span>
+                          </div>
+                          <div className="schedule-card-week">{weekLabel}</div>
+                          {entries.length === 0 ? (
+                            <p className="schedule-empty">Nothing scheduled this week.</p>
+                          ) : (
+                            <ul className="schedule-entries">
+                              {entries.map((e, i) => {
+                                const prevDate = i > 0 ? entries[i - 1].date : null;
+                                const showDate = e.date !== prevDate;
+                                const dateLabel = new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+                                return (
+                                  <li key={i} className="schedule-entry">
+                                    {showDate && <div className="schedule-entry-date">{dateLabel}</div>}
+                                    <div className="schedule-entry-label">{e.label}</div>
+                                    {e.detail && <div className="schedule-entry-detail">{e.detail}</div>}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                          <div className="schedule-card-foot">The Family Plan · {code}</div>
+                        </div>
+                        <button type="button" className="ghost-btn" onClick={() => downloadSchedule(p.id, p.name)}>
+                          Save image
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             <div className="modal-actions">
               <span className="spacer" />
               <button type="button" className="primary" onClick={() => setDrivesOpen(false)}>Done</button>
