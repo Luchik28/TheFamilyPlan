@@ -258,7 +258,7 @@ input:focus, select:focus, textarea:focus {
 .color-swatch:hover { transform: scale(1.15); }
 .color-swatch.selected { border-color: #000; box-shadow: 0 0 0 1px #fff inset; }
 .custom-swatch { display: grid; place-items: center; overflow: hidden; }
-.custom-plus { grid-area: 1 / 1; font-size: 16px; line-height: 1; font-weight: 600; }
+.custom-plus { display: grid; place-items: center; overflow: hidden; font-size: 16px; line-height: 1; font-weight: 600; }
 .custom-color-input {
   grid-area: 1 / 1; width: 100%; height: 100%;
   opacity: 0; padding: 0; border: 0; cursor: pointer;
