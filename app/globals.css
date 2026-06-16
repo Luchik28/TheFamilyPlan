@@ -341,7 +341,8 @@ input:focus, select:focus, textarea:focus {
 
 /* Priority tier editor (settings). */
 .tier-editor { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 4px; }
-.tier-row { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fafbff; }
+.tier-row { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fafbff; transition: border-color .12s, background .12s; }
+.tier-row.drag-over { border-color: var(--accent); background: rgba(79,124,255,.08); }
 .tier-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .tier-name { font-size: 13px; font-weight: 700; }
 .tier-weight { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 0; width: auto; }
@@ -352,7 +353,10 @@ input:focus, select:focus, textarea:focus {
 .tier-chip {
   display: inline-flex; align-items: center; gap: 5px;
   background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 3px 7px; font-size: 12px;
+  cursor: grab;
 }
+.tier-chip:active { cursor: grabbing; }
+.tier-chip.dragging { opacity: .4; }
 .tier-chip-name { font-weight: 600; }
 .tier-move {
   border: none; background: transparent; padding: 0 2px; font-size: 10px;

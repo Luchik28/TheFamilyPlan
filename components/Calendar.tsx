@@ -166,6 +166,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
   // Local editing state for the settings tier editor.
   const [tiersForm, setTiersForm] = useState<number[]>(DEFAULT_TIERS);
   const [tierAssign, setTierAssign] = useState<Record<number, number>>({});
+  const [dragPersonId, setDragPersonId] = useState<number | null>(null);
+  const [dragOverTier, setDragOverTier] = useState<number | null>(null);
   const [hoverGhost, setHoverGhost] = useState<{ dateStr: string; startMins: number } | null>(null);
   const [dragGhost, setDragGhost] = useState<{ dateStr: string; startMins: number; endMins: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -747,6 +749,10 @@ export default function Calendar({ code, name }: { code: string; name: string })
       const next = Math.max(0, Math.min(tiersForm.length - 1, cur + delta));
       return { ...a, [personId]: next };
     });
+  }
+  function assignTier(personId: number, tierIdx: number) {
+    const next = Math.max(0, Math.min(tiersForm.length - 1, tierIdx));
+    setTierAssign((a) => ({ ...a, [personId]: next }));
   }
 
   async function copyLink() {
@@ -1338,7 +1344,17 @@ export default function Calendar({ code, name }: { code: string; name: string })
               {tiersForm.map((weight, idx) => {
                 const members = people.filter((p) => Math.min(tierAssign[p.id] ?? 0, tiersForm.length - 1) === idx);
                 return (
-                  <div key={idx} className="tier-row">
+                  <div
+                    key={idx}
+                    className={"tier-row" + (dragOverTier === idx ? " drag-over" : "")}
+                    onDragOver={(e) => { if (dragPersonId !== null) { e.preventDefault(); setDragOverTier(idx); } }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragPersonId !== null) assignTier(dragPersonId, idx);
+                      setDragPersonId(null);
+                      setDragOverTier(null);
+                    }}
+                  >
                     <div className="tier-head">
                       <span className="tier-name">
                         Tier {idx + 1}{idx === 0 ? " · highest" : ""}
@@ -1362,7 +1378,13 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     <div className="tier-members">
                       {members.length === 0 && <span className="tier-empty">No one here</span>}
                       {members.map((p) => (
-                        <span key={p.id} className="tier-chip">
+                        <span
+                          key={p.id}
+                          className={"tier-chip" + (dragPersonId === p.id ? " dragging" : "")}
+                          draggable
+                          onDragStart={(e) => { setDragPersonId(p.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(p.id)); }}
+                          onDragEnd={() => { setDragPersonId(null); setDragOverTier(null); }}
+                        >
                           <span className="person-dot" style={{ background: p.color }} />
                           <span className="tier-chip-name">{p.name}</span>
                           <button
