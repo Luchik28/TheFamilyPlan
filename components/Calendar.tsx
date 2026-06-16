@@ -766,7 +766,9 @@ export default function Calendar({ code, name }: { code: string; name: string })
 
         <p className="sidebar-hint">
           {selectedPerson
-            ? "Click a time slot to add — or click again to deselect."
+            ? selectedPerson.role === "kid"
+              ? "Click a time slot to add a pickup/dropoff for this kid, click on the kid again to deselect."
+              : "Click and drag to mark availability for this driver, click on the driver again to deselect."
             : "Select a driver or kid, then click the calendar to add their times."}
         </p>
 
@@ -1045,8 +1047,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
                         onClick={() => setPersonForm({ ...personForm, color: c })}
                       />
                     ))}
-                    <label className="color-swatch custom-swatch" style={{ background: PALETTE.includes(personForm.color) ? "#e2e8f0" : personForm.color }} title="Custom color">
-                      <span className="custom-plus" style={{ color: PALETTE.includes(personForm.color) ? "#64748b" : "#fff" }}>+</span>
+                    <label className={"color-swatch custom-swatch" + (PALETTE.includes(personForm.color) ? "" : " selected")} style={{ background: PALETTE.includes(personForm.color) ? "#e2e8f0" : personForm.color }} title="Custom color">
+                      {PALETTE.includes(personForm.color) && <span className="custom-plus" style={{ color: "#64748b" }}>+</span>}
                       <input
                         type="color"
                         className="custom-color-input"
