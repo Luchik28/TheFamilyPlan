@@ -211,6 +211,16 @@ export default function Calendar({ code, name }: { code: string; name: string })
     return () => clearInterval(t);
   }, []);
 
+  // Lock background scrolling while any modal is open, so scrolling moves the
+  // modal's own content rather than the calendar behind it.
+  const anyModalOpen = !!itemForm || !!personForm || settingsOpen || drivesOpen;
+  useEffect(() => {
+    if (!anyModalOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [anyModalOpen]);
+
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!dragRef.current) return;
@@ -808,14 +818,6 @@ export default function Calendar({ code, name }: { code: string; name: string })
           <div className="topbar-right">
             <button type="button" className="ghost-btn" onClick={() => setDrivesOpen(true)}>
               Drives {plan.drives.length > 0 && <span className="drives-badge">{plan.drives.length}</span>}
-            </button>
-            <button
-              className="primary"
-              type="button"
-              disabled={!selectedPerson}
-              onClick={() => addForSelected()}
-            >
-              {selectedPerson ? `+ Add for ${selectedPerson.name}` : "+ Add"}
             </button>
           </div>
         </header>
