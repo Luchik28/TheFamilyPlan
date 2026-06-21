@@ -298,61 +298,85 @@ input:focus, select:focus, textarea:focus {
   display: flex; gap: 14px; align-items: flex-start;
   padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbff;
 }
-.drive-time { min-width: 90px; display: flex; flex-direction: column; gap: 2px; }
+.drive-time { min-width: 92px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
 .drive-date { font-size: 11px; color: var(--muted); }
-.drive-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.drive-who { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; flex-wrap: wrap; }
-.drive-participant { display: flex; align-items: center; gap: 4px; }
-.drive-type { font-size: 11px; font-weight: 400; color: var(--muted); background: #f0f2f8; border-radius: 6px; padding: 1px 6px; }
-.drive-route { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-.drive-loc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drive-arrow { color: var(--accent); font-weight: 700; }
-.drive-duration { background: var(--accent); color: #fff; border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 600; margin-left: 4px; }
+.drive-time strong { font-size: 15px; }
+.drive-detail { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.drive-who { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; flex-wrap: wrap; }
+.drive-participant { display: flex; align-items: center; gap: 5px; }
+.drive-meta { font-size: 11px; font-weight: 500; color: var(--muted); }
 .plan-section-title { font-size: 14px; font-weight: 700; margin: 18px 0 10px; color: var(--text); border-top: 1px solid var(--line); padding-top: 14px; }
 .plan-section-title.first { border-top: none; padding-top: 0; margin-top: 8px; }
-.unassigned-badge { font-size: 12px; color: #e5484d; font-weight: 600; }
-
-/* Pooled carpool trips in the driver plan. */
+.unassigned-badge { font-size: 12px; color: var(--danger); font-weight: 600; }
 .pool-badge {
   font-size: 11px; font-weight: 700; color: var(--accent);
   background: rgba(79,124,255,.14); border-radius: 6px; padding: 1px 6px;
 }
-.pool-stop { display: inline-flex; align-items: center; gap: 4px; }
-.drive-stop-time { font-size: 11px; color: var(--muted); }
+
+/* Pooled carpool trip — one aligned row per stop. */
+.drive-stops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.drive-stop {
+  display: grid; grid-template-columns: 62px minmax(0, auto) 1fr auto;
+  align-items: center; gap: 10px; font-size: 13px;
+}
+.stop-verb {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+  text-align: center; border-radius: 5px; padding: 2px 0;
+}
+.stop-verb.dropoff { color: #b54708; background: #fef0e6; }
+.stop-verb.pickup { color: #175cd3; background: #eaf1fe; }
+.stop-kids { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.stop-kid { display: inline-flex; align-items: center; gap: 4px; }
+.stop-addr { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stop-time { font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
 
 /* Shareable per-person schedule cards (bottom of the plan page). */
 .schedule-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px; margin-top: 10px;
 }
-.schedule-card-wrap { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.schedule-card-wrap { position: relative; cursor: pointer; border-radius: 12px; }
 .schedule-card {
-  width: 100%; background: #fff; border: 1px solid var(--line);
+  background: #fff; border: 1px solid var(--line);
   border-radius: 12px; padding: 16px; box-shadow: 0 2px 10px rgba(28,35,51,.05);
 }
+/* Hover overlay (a sibling, so it's not captured in the exported PNG). */
+.schedule-card-overlay {
+  position: absolute; inset: 0; border-radius: 12px; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20,26,40,0); transition: background .15s;
+}
+.schedule-card-overlay span {
+  color: #fff; font-weight: 700; font-size: 13px; letter-spacing: 1px;
+  text-transform: uppercase; opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s;
+}
+.schedule-card-wrap:hover .schedule-card-overlay { background: rgba(20,26,40,.55); }
+.schedule-card-wrap:hover .schedule-card-overlay span { opacity: 1; transform: none; }
 .schedule-card-head { display: flex; align-items: center; gap: 8px; }
-.schedule-card-name { font-weight: 700; font-size: 16px; }
-.schedule-card-role { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; margin-left: auto; }
+.schedule-card-head .person-dot { width: 11px; height: 11px; }
+.schedule-card-name { font-weight: 700; font-size: 16px; line-height: 1.1; }
+.schedule-card-role { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; margin-left: auto; align-self: center; }
 .schedule-card-week { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }
 .schedule-entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .schedule-entry-date { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--accent); margin-top: 6px; }
 .schedule-entry-label { font-size: 13px; font-weight: 600; }
 .schedule-entry-detail { font-size: 12px; color: var(--muted); }
 .schedule-empty { font-size: 13px; color: var(--muted); font-style: italic; margin: 4px 0 0; }
-.schedule-card-foot {
-  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
-  font-size: 10px; color: var(--muted); letter-spacing: .5px;
-}
 
 /* Priority tier editor (settings). */
 .tier-editor { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 4px; }
 .tier-row { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fafbff; transition: border-color .12s, background .12s; }
 .tier-row.drag-over { border-color: var(--accent); background: rgba(79,124,255,.08); }
-.tier-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.tier-name { font-size: 13px; font-weight: 700; }
-.tier-weight { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 0; width: auto; }
-.tier-weight input { width: 64px; padding: 4px 6px; }
-.tier-remove { margin-left: auto; color: var(--danger); }
+.tier-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; min-height: 30px; }
+.tier-name { font-size: 13px; font-weight: 700; line-height: 1; }
+/* Scoped with two classes so the global `.modal label` rules don't bleed in. */
+.tier-row .tier-weight {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 0 0 auto; width: auto;
+  font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1;
+}
+.tier-row .tier-weight input { width: 56px; padding: 4px 6px; margin: 0; font-size: 13px; }
+.tier-row .tier-remove { font-size: 12px; padding: 4px 8px; color: var(--danger); line-height: 1; }
 .tier-members { display: flex; flex-wrap: wrap; gap: 6px; }
 .tier-empty { font-size: 12px; color: var(--muted); font-style: italic; }
 .tier-chip {
@@ -429,6 +453,10 @@ input:focus, select:focus, textarea:focus {
 .modal h2 { margin: 0 0 16px; font-size: 19px; }
 .modal label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 .modal label input, .modal label select, .modal label textarea { margin-top: 4px; }
+.modal textarea.autogrow {
+  resize: none; overflow-y: auto; min-height: 52px; max-height: 45vh;
+  line-height: 1.4;
+}
 .modal .row { display: flex; gap: 12px; }
 .modal .row label { flex: 1; }
 .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }

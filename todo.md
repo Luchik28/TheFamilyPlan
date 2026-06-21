@@ -12,7 +12,7 @@ A list of things that need to be fixed.
  - Import other calendar? Could be helpful for automating the putting in process.
  - Maybe add auth/accounts so people can sync their stuff.
  - Maybe customizable bg/other stuff.
- - Some kind of way to track where each kid at each point in the day. Or maybe in the logic it's just like when was their last event/pickup? With the default being HOME.
+ - Add emails to people in settings, so there's just one button where you press "Send schedules" And it emails (or maybe texts?) their schedule to them, instead of just downloading an image.
  - Onboarding/mandatory add mandatory home address addition.
  - An export for each driver's schedule.
 

@@ -4,14 +4,7 @@
 
 ![The Family Plan — a week calendar of driver availability and kid pickups, with an automatic driving plan](docs/banner.svg)
 
-<!-- Tip for an even stronger first impression: drop a short screen-capture GIF here
-     showing create plan → add availability → add a kid need → open "Drives". -->
-
-### ▶ [Try the live demo](https://the-family-plan.vercel.app)
-
-<!-- TODO: replace the URL above with your deployed Vercel URL before sharing. -->
-
-No sign-up. Create a plan, get a 6-character code, and share the link — everyone with the code sees and edits the same week.
+### ▶ [Demo!!!](https://the-family-plan.vercel.app)
 
 ---
 

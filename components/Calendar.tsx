@@ -144,6 +144,12 @@ function topFor(hhmm: string): number {
 function minsToTime(mins: number): string {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
+// Grow a textarea to fit its content (CSS caps the max height, then it scrolls).
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 export default function Calendar({ code, name }: { code: string; name: string }) {
   const [weekStart] = useState<Date>(() => defaultWeekStart());
@@ -1172,9 +1178,11 @@ export default function Calendar({ code, name }: { code: string; name: string })
               <label>
                 Notes (optional)
                 <textarea
-                  rows={2} maxLength={300}
+                  className="autogrow"
+                  maxLength={300}
                   value={itemForm.notes}
-                  onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })}
+                  ref={autoGrow}
+                  onChange={(e) => { setItemForm({ ...itemForm, notes: e.target.value }); autoGrow(e.target); }}
                 />
               </label>
 
@@ -1211,6 +1219,17 @@ export default function Calendar({ code, name }: { code: string; name: string })
                     trips.map((trip, ti) => {
                       const driver = trip.driverId != null ? people.find((p) => p.id === trip.driverId) : null;
                       const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+                      const verb = trip.tripType === "pickup" ? "Pick up" : "Drop off";
+                      // Group stops that share a place + time so multiple kids show as one line.
+                      const groups: { key: string; kidIds: number[]; location: string; atMins: number }[] = [];
+                      for (const s of trip.stops) {
+                        const it = items.find((x) => x.id === s.needId);
+                        const location = it?.location || "—";
+                        const key = `${location}|${s.atMins}`;
+                        const g = groups.find((gr) => gr.key === key);
+                        if (g) g.kidIds.push(s.kidId);
+                        else groups.push({ key, kidIds: [s.kidId], location, atMins: s.atMins });
+                      }
                       return (
                         <li key={`${date}-${ti}`} className="drive-row">
                           <div className="drive-time">
@@ -1228,26 +1247,31 @@ export default function Calendar({ code, name }: { code: string; name: string })
                               ) : (
                                 <span className="unassigned-badge">No driver available</span>
                               )}
-                              <span className="drive-type">{trip.tripType === "pickup" ? "pick up" : "drop off"}</span>
+                              <span className="drive-meta">{trip.driverCommittedMins} min driving</span>
                               {trip.stops.length > 1 && (
                                 <span className="pool-badge">carpool ×{trip.stops.length}</span>
                               )}
                             </div>
-                            <div className="drive-route">
-                              {trip.stops.map((s, si) => {
-                                const kid = people.find((p) => p.id === s.kidId);
-                                const it = items.find((x) => x.id === s.needId);
-                                return (
-                                  <span key={s.needId} className="pool-stop">
-                                    {si > 0 && <span className="drive-arrow">→</span>}
-                                    <span className="person-dot" style={{ background: kid?.color }} />
-                                    <span className="drive-loc">{it?.location || "—"}</span>
-                                    <span className="drive-stop-time">{fmtTime(minsToTime(s.atMins))}</span>
+                            <ul className="drive-stops">
+                              {groups.map((g, gi) => (
+                                <li key={gi} className="drive-stop">
+                                  <span className={"stop-verb " + trip.tripType}>{verb}</span>
+                                  <span className="stop-kids">
+                                    {g.kidIds.map((kid, ki) => {
+                                      const k = people.find((p) => p.id === kid);
+                                      return (
+                                        <span key={kid} className="stop-kid">
+                                          <span className="person-dot" style={{ background: k?.color }} />
+                                          {k?.name}{ki < g.kidIds.length - 1 ? "," : ""}
+                                        </span>
+                                      );
+                                    })}
                                   </span>
-                                );
-                              })}
-                              <span className="drive-duration">{trip.driverCommittedMins} min driving</span>
-                            </div>
+                                  <span className="stop-addr" title={g.location}>{g.location}</span>
+                                  <span className="stop-time">{fmtTime(minsToTime(g.atMins))}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         </li>
                       );
@@ -1265,7 +1289,12 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   {people.map((p) => {
                     const entries = personSchedules.get(p.id) ?? [];
                     return (
-                      <div key={p.id} className="schedule-card-wrap">
+                      <div
+                        key={p.id}
+                        className="schedule-card-wrap"
+                        onClick={() => downloadSchedule(p.id, p.name)}
+                        title="Click to save as an image"
+                      >
                         <div className="schedule-card" ref={(el) => { cardRefs.current[p.id] = el; }}>
                           <div className="schedule-card-head">
                             <span className="person-dot" style={{ background: p.color }} />
@@ -1291,11 +1320,8 @@ export default function Calendar({ code, name }: { code: string; name: string })
                               })}
                             </ul>
                           )}
-                          <div className="schedule-card-foot">The Family Plan · {code}</div>
                         </div>
-                        <button type="button" className="ghost-btn" onClick={() => downloadSchedule(p.id, p.name)}>
-                          Save image
-                        </button>
+                        <div className="schedule-card-overlay"><span>Save image</span></div>
                       </div>
                     );
                   })}
