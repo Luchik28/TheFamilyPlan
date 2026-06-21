@@ -2,7 +2,7 @@
   "name": "the-family-plan",
   "version": "1.0.0",
   "private": true,
-  "description": "A shared weekly calendar — multiple users join one plan via an access code.",
+  "description": "A weekly planner that solves your family's carpool — who drives whom, with rides pooled to save time.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

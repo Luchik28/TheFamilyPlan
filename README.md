@@ -1,82 +1,90 @@
 # The Family Plan
 
-Are you a member of a family that has a VERY complicated logistics schedules?
-Are the kids always being shuttled around to various extracurricular activities?
-Then **The Family Plan** might be for you!
+**A weekly planner that solves your family's carpool for you** — say who's free to drive and where the kids need to be, and it works out who drives whom, pooling rides so nobody wastes time in the car.
 
-It includes tools to help a single person quickly plan out the week so they know who needs to drive who where and when! Gone are the hours spent each weekend figuring out logistics struggles! And it's free! (but not done yet)
+![The Family Plan — a week calendar of driver availability and kid pickups, with an automatic driving plan](docs/banner.svg)
+
+<!-- Tip for an even stronger first impression: drop a short screen-capture GIF here
+     showing create plan → add availability → add a kid need → open "Drives". -->
+
+### ▶ [Try the live demo](https://the-family-plan.vercel.app)
+
+<!-- TODO: replace the URL above with your deployed Vercel URL before sharing. -->
+
+No sign-up. Create a plan, get a 6-character code, and share the link — everyone with the code sees and edits the same week.
+
+---
+
+## Quick start
+
+It's a website — **[open the demo](https://the-family-plan.vercel.app)**, click **Create a new family**, type your home address, and you're in. Then:
+
+1. Add a **driver** and a **kid** in the sidebar.
+2. Select the driver and **drag on the calendar** to mark when they can drive.
+3. Select the kid and **click** to add a drop-off or pickup (with a real address).
+4. Hit **Drives** — the carpool plan appears, and you can save each person's schedule as an image to text them.
 
 ## Features
 
-- **People sidebar** — manage any number of **drivers** and **kids**, each with
-  a name and color. Add, rename, recolor, or remove them.
-- **Week view** of the current week (Mon–Sun) with an hourly time grid and a
-  live "now" line. The grid shows two kinds of things:
-  - **Kid needs** — a *point in time* (and place) a kid needs to be somewhere,
-    shown as a labeled marker, e.g. "5:00 PM · Sam · Soccer field".
-  - **Driver availability** — a *block of time* a driver can drive, shown as a
-    translucent band in that driver's color.
-- **Shared access** — each plan has a short access code. Anyone with the code
-  and URL (`/plan/ABC123`) sees and edits the same schedule.
-- **Add / edit / delete** by clicking an empty slot or an existing entry. The
-  entry form adapts to who you pick: a kid gets a single time + location, a
-  driver gets an available-from/until range.
-- **Week navigation** (previous / next / today).
-- **Vercel Postgres** persistence — durable across restarts and deploys.
+- **Drag-to-plan calendar** — select a driver and drag down a day to block out availability; select a kid and click to drop a pickup/dropoff at an exact time and address. Overlapping availability for the same driver auto-merges.
+- **Automatic carpool solving** — the core of the app. It assigns drivers to trips and **pools multiple kids into one car** when the extra driving is worth it, while guaranteeing every kid arrives on time.
+- **Real travel times** — addresses are geocoded and routed (OSRM), so "leave by" times and detours reflect actual driving, not guesses.
+- **Priority tiers** — decide whose time matters most (drivers over kids by default). Drag people between tiers in Settings; the planner weights its choices accordingly.
+- **Shareable schedules** — export any person's week as a clean PNG to send over text or email: drivers see their runs, kids see their rides and who's driving.
+- **Shared by a code** — every plan has a short access code and URL (`/plan/ABC123`); the whole family edits one live schedule.
 
-## Tech
+## How it works
 
-- Next.js 15 (App Router), React 19, TypeScript
-- `@vercel/postgres` for the database
-- Route handlers under `app/api/...` for the JSON API
-- No CSS framework — plain `app/globals.css`
+The interesting part is the **carpool optimizer** ([`lib/route.ts`](lib/route.ts)).
 
-## Deploy to Vercel
+Deciding who rides together is a small **dial-a-ride / vehicle-routing problem**. Family-sized instances are tiny, so instead of a heavyweight solver it uses **greedy savings-merging**: every kid starts as their own trip, and trips are repeatedly fused whenever combining them lowers the objective — trying every stop order (brute force is fine at this scale) and keeping the cheapest.
 
-1. Push this repo to GitHub.
-2. In Vercel, **Import Project** from the repo.
-3. In the project's **Storage** tab, create a **Postgres** database and connect
-   it. Vercel injects `POSTGRES_URL` (and friends) automatically.
-4. Deploy. The schema (`plans`, `events` tables) is created automatically on the
-   first request via `ensureSchema()`.
+The key design decision: **pool on marginal detour cost, never on compass direction.** "Same direction vs. opposite" is unreliable — what matters is whether adding a kid costs much extra driving. Two kids heading "opposite" ways still ride together when one destination is simply on the road to the other, because the optimizer asks OSRM for the real road time (one [`/table`](https://project-osrm.org/docs/v5.24.0/api/#table-service) matrix call per day) rather than reasoning about geometry.
 
-## Local development
+"Best" is a single weighted objective: **minimize Σ (priority weight × time committed)**, subject to the hard constraint that everyone arrives on time (early arrival is free — you just leave later). Priority tiers feed the weights, so the same machinery covers both "protect the drivers' time" and a flat "minimize everyone's total time in the car."
+
+The optimizer is a **pure module with the travel-time oracle injected**, so its logic is unit-tested offline (no network) — see [`lib/route.test.ts`](lib/route.test.ts). Run the tests with `npm test`.
+
+The rest is a Next.js App Router app: route handlers under [`app/api`](app/api) back a small JSON API over Postgres, and a single client component renders the calendar and runs the optimizer in the browser as you edit.
+
+## Run it locally
+
+Requires **Node 18+** and a **Postgres** connection string.
 
 ```bash
 npm install
-
-# Pull the Postgres env vars from your Vercel project (one-time):
-npx vercel link
-npx vercel env pull .env.local
-
-npm run dev
+cp .env.example .env.local      # then set POSTGRES_URL (see below)
+npm run dev                     # http://localhost:3000
 ```
 
-Open http://localhost:3000
+**Getting a database (free, ~2 min):** create a project at [Neon](https://neon.tech) (or Supabase / local Docker Postgres) and paste its connection string into `.env.local` as `POSTGRES_URL`. The schema is created automatically on first request — no migrations to run.
 
-- **Create a plan** to get an access code.
-- Share the URL (e.g. `/plan/ABC123`) or have others enter the code on the home
-  page to **join**.
+```bash
+# .env.local
+POSTGRES_URL="postgres://user:password@host/dbname?sslmode=require"
+```
 
-> No Postgres yet? You can also point `POSTGRES_URL` at any Postgres instance
-> (local Docker, Neon, Supabase) — see `.env.example`.
+Other commands:
 
-## API
+```bash
+npm test          # run the optimizer unit tests (Vitest)
+npm run build     # production build
+```
 
-| Method | Path                             | Purpose                          |
-| ------ | -------------------------------- | -------------------------------- |
-| POST   | `/api/plan`                      | Create a plan, returns code      |
-| GET    | `/api/plan/:code/people`         | List drivers and kids            |
-| POST   | `/api/plan/:code/people`         | Add a driver or kid              |
-| PUT    | `/api/plan/:code/people/:id`     | Update a person                  |
-| DELETE | `/api/plan/:code/people/:id`     | Remove a person (+ their items)  |
-| GET    | `/api/plan/:code/items?week=...` | List schedule items for a week   |
-| POST   | `/api/plan/:code/items`          | Add a need / availability        |
-| PUT    | `/api/plan/:code/items/:id`      | Update an item                   |
-| DELETE | `/api/plan/:code/items/:id`      | Delete an item                   |
+### Deploy
 
-## Note on access
+Push to GitHub, **Import** the repo in [Vercel](https://vercel.com), add a **Postgres** database in the Storage tab (it injects `POSTGRES_URL` automatically), and deploy.
 
-The access code grants full view/edit access to that plan — treat it like a
-shared password. For a quick family/team calendar this is intentional; add real
-auth if you need per-user permissions.
+## Tech stack
+
+- **Next.js 15** (App Router) · **React 19** · **TypeScript**
+- **Postgres** via `@vercel/postgres`
+- **OSRM** for routing, **Photon** (Komoot) for address autocomplete
+- **html-to-image** for the PNG schedule export
+- **Vitest** for tests · plain CSS, no UI framework
+
+## Credits
+
+- Routing by the [OSRM](https://project-osrm.org/) public API; geocoding by [Photon](https://photon.komoot.io/).
+- PNG export via [html-to-image](https://github.com/bubkoo/html-to-image).
+- Built for **[Hack Club Stardance](https://stardance.hackclub.com/)**.

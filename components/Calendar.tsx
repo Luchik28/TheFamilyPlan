@@ -1197,7 +1197,13 @@ export default function Calendar({ code, name }: { code: string; name: string })
           <div className="modal modal-wide">
             <h2>Drives this week</h2>
             {weekTrips.length === 0 ? (
-              <p className="modal-sub">No drives planned yet — add driver availability and kid drop-offs/pick-ups from the calendar.</p>
+              home.lat == null ? (
+                <p className="modal-sub">
+                  Set your <button type="button" className="link-btn" onClick={() => { setDrivesOpen(false); openSettings(); }}>home address</button> first — it&apos;s the starting point trips are planned from.
+                </p>
+              ) : (
+                <p className="modal-sub">No drives to plan yet — add some driver availability and kid drop-offs/pick-ups on the calendar, and they&apos;ll be routed here automatically.</p>
+              )
             ) : (
               <>
                 <ul className="drives-list">

@@ -242,6 +242,11 @@ input:focus, select:focus, textarea:focus {
 
 
 .modal-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+.link-btn {
+  border: none; background: none; padding: 0; font: inherit;
+  color: var(--accent); text-decoration: underline; cursor: pointer;
+}
+.link-btn:hover { background: none; color: var(--accent-dark); }
 
 .travel-block {
   position: absolute; left: 0; right: 0;
