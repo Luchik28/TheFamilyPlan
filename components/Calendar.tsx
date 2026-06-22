@@ -804,6 +804,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
           onEdit={openEditPerson}
           onAdd={() => openNewPerson("kid")}
         />
+      
 
         <div className="legend">
           <div><span className="legend-swatch block" /> driver available (block)</div>
@@ -1202,7 +1203,12 @@ export default function Calendar({ code, name }: { code: string; name: string })
       {/* ---------------- Drives modal ---------------- */}
       {drivesOpen && (
         <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setDrivesOpen(false); }}>
-          <div className="modal modal-wide">
+          <div className="modal modal-wide no-scrollbar">
+            <button type="button" className="icon-btn modal-close" onClick={() => setDrivesOpen(false)} aria-label="Close" title="Close">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+                <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              </svg>
+            </button>
             <h2>Drives this week</h2>
             {weekTrips.length === 0 ? (
               home.lat == null ? (

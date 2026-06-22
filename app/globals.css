@@ -293,7 +293,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 4px; margin-left: 4px;
 }
 .modal-wide { max-width: min(960px, 94vw); }
-.drives-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.drives-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .drive-row {
   display: flex; gap: 14px; align-items: flex-start;
   padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbff;
@@ -446,10 +446,15 @@ input:focus, select:focus, textarea:focus {
   z-index: 50; padding: 24px; overscroll-behavior: contain;
 }
 .modal {
+  position: relative;
   background: #fff; border-radius: 14px; padding: 24px;
   width: 100%; max-width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,.25);
   max-height: 90vh; overflow-y: auto; overscroll-behavior: contain;
 }
+.modal-close { position: absolute; top: 12px; right: 12px; z-index: 2; }
+/* Scrollable but no visible scrollbar. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
 .modal h2 { margin: 0 0 16px; font-size: 19px; }
 .modal label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 .modal label input, .modal label select, .modal label textarea { margin-top: 4px; }

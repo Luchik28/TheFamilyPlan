@@ -25,3 +25,4 @@ A list of things that need to be fixed.
  - A "Schedule" button, which should take all the things on the calendar, and decide who should drive who where, then email (or text, or smth), a list of where they're driving that day, or email a kid where they're going and who is driving them. The goal is to optimize and solve for driving time, so all ofh the people are sharing the driving load equally, and each kid doesn't have to sit in the car while the other kid is being driven to their thing.
  - Multi kid pickup/dropoffs, bc a lot of times multiple kids need to get picked up/dropped off at the same time.
  - Maybe integrate with some kind of mapping software to add a kind of driving time before each thing? Need to research that
+ - UI updates
