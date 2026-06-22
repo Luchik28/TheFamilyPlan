@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LocationInput from "./LocationInput";
-import { fetchTableOracle, planDay, type LatLng, type Need, type Trip } from "@/lib/route";
+import { fetchTableOracle, planDay, type LatLng, type Need, type TravelOracle, type Trip } from "@/lib/route";
 
 const DEFAULT_TIERS = [2, 1];
 
@@ -356,16 +356,16 @@ export default function Calendar({ code, name }: { code: string; name: string })
   useEffect(() => {
     const controller = new AbortController();
     async function compute() {
-      if (home.lat == null || home.lng == null) { setWeekTrips([]); return; }
-      const homePt: LatLng = { lat: home.lat, lng: home.lng };
+      // Home may be unset — needs without a routable origin/dest still produce
+      // solo, driver-assigned trips (just without travel-time pooling).
+      const homePt: LatLng | null =
+        home.lat != null && home.lng != null ? { lat: home.lat, lng: home.lng } : null;
 
-      const kidNeeds = items.filter(
-        (it) => it.person_role === "kid" && it.lat != null && it.lng != null
-      );
+      const kidNeeds = items.filter((it) => it.person_role === "kid");
       if (kidNeeds.length === 0) { setWeekTrips([]); return; }
 
       // Chained origin for a drop-off: the kid's previous drop-off location that
-      // day (if it has coords), else home.
+      // day (if it has coords), else home (which may itself be unset/null).
       const byKidDate = new Map<string, ScheduleItem[]>();
       for (const it of kidNeeds) {
         const k = `${it.person_id}:${it.event_date}`;
@@ -377,7 +377,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
       for (const g of byKidDate.values()) {
         for (let i = 0; i < g.length; i++) {
           const it = g[i];
-          const loc: LatLng = { lat: it.lat as number, lng: it.lng as number };
+          const loc: LatLng | null = it.lat != null && it.lng != null ? { lat: it.lat, lng: it.lng } : null;
           let origin = homePt;
           if (it.trip_type !== "pickup") {
             for (let j = i - 1; j >= 0; j--) {
@@ -400,19 +400,25 @@ export default function Calendar({ code, name }: { code: string; name: string })
         }
       }
 
-      // Unique points for the distance matrix.
+      // Unique points for the distance matrix (skip nulls).
       const pts: LatLng[] = [];
       const seen = new Set<string>();
       for (const p of [homePt, ...needs.flatMap((n) => [n.origin, n.dest])]) {
+        if (!p) continue;
         const key = `${p.lat},${p.lng}`;
         if (!seen.has(key)) { seen.add(key); pts.push(p); }
       }
 
-      let oracle;
-      try {
-        oracle = await fetchTableOracle(pts, controller.signal);
-      } catch { return; }
-      if (controller.signal.aborted) return;
+      // Only hit OSRM when something is actually routable; otherwise every need
+      // is a solo trip and no matrix is needed.
+      const anyLocated = needs.some((n) => n.origin != null && n.dest != null);
+      let oracle: TravelOracle = () => Infinity;
+      if (anyLocated) {
+        try {
+          oracle = await fetchTableOracle(pts, controller.signal);
+        } catch { return; }
+        if (controller.signal.aborted) return;
+      }
 
       const tierCount = priorityTiers.length;
       const weightOf = (personId: number) => {

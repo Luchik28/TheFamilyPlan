@@ -25,14 +25,23 @@ export type TripType = "dropoff" | "pickup";
 // A kid needs to travel between `origin` and `dest`, arriving at the far end of
 // the trip by `deadlineMins` (minutes since midnight). For a drop-off that's
 // arrival at `dest`; for a pick-up it's the driver reaching `origin`.
+//
+// `origin`/`dest` may be null when an address hasn't been set yet — such a need
+// can't be routed or pooled, so it becomes a solo, zero-travel trip that still
+// reserves a driver at its time (see `planDay`).
 export type Need = {
   id: number;
   kidId: number;
-  origin: LatLng;
-  dest: LatLng;
+  origin: LatLng | null;
+  dest: LatLng | null;
   deadlineMins: number;
   tripType: TripType;
 };
+
+// A need is routable only if both ends of its trip have coordinates.
+function isLocated(n: Need): boolean {
+  return n.origin != null && n.dest != null;
+}
 
 // A driver is available on this day for [startMins, endMins].
 export type DriverAvail = {
@@ -64,7 +73,7 @@ export type TripStop = {
 
 export type Trip = {
   tripType: TripType;
-  depot: LatLng;
+  depot: LatLng | null; // null for an unrouted (address-less) solo trip
   stops: TripStop[];
   departMins: number;
   endMins: number; // when the driver returns to the depot
@@ -120,9 +129,10 @@ function evalOrder(
   let cum = 0;
   let prev = depot;
   for (const n of order) {
-    cum += travel(prev, stopOf(n, mode));
+    const stop = stopOf(n, mode)!; // callers pass only located needs
+    cum += travel(prev, stop);
     offsets.push(cum);
-    prev = stopOf(n, mode);
+    prev = stop;
   }
   const total = cum + travel(prev, depot); // return to depot
 
@@ -153,7 +163,7 @@ function bestEval(
   driverWeight: number,
   bruteForceCap: number
 ): Eval {
-  const depot = depotOf(needs[0], mode);
+  const depot = depotOf(needs[0], mode)!; // callers pass only located needs
   const orders =
     needs.length <= bruteForceCap
       ? permutations(needs)
@@ -180,12 +190,12 @@ function nearestNeighborOrder(
     let bi = 0;
     let bd = Infinity;
     for (let i = 0; i < remaining.length; i++) {
-      const d = travel(prev, stopOf(remaining[i], mode));
+      const d = travel(prev, stopOf(remaining[i], mode)!);
       if (d < bd) { bd = d; bi = i; }
     }
     const [n] = remaining.splice(bi, 1);
     order.push(n);
-    prev = stopOf(n, mode);
+    prev = stopOf(n, mode)!;
   }
   return order;
 }
@@ -265,12 +275,29 @@ function assignDrivers(trips: Trip[], drivers: DriverAvail[]): Trip[] {
 
 // ---- public -------------------------------------------------------------- //
 
-// Plan all trips of one type, pooling within shared-depot groups.
+// A need without coordinates can't be routed or pooled — give it a solo,
+// zero-travel trip at its time so it still reserves a driver.
+function soloTrip(n: Need): Trip {
+  return {
+    tripType: n.tripType,
+    depot: null,
+    stops: [{ needId: n.id, kidId: n.kidId, atMins: n.deadlineMins, rideMins: 0 }],
+    departMins: n.deadlineMins,
+    endMins: n.deadlineMins,
+    driverId: null,
+    driverCommittedMins: 0,
+    weightedCost: 0,
+  };
+}
+
+// Plan all trips of one type, pooling within shared-depot groups. Only routable
+// (located) needs reach pooling; address-less ones are handled by `planDay`.
 export function planTrips(mode: TripType, args: PlanArgs): Trip[] {
   const { needs, drivers, weightOf, driverWeight, travel, bruteForceCap = 7 } = args;
   const groups: Need[][] = [];
   for (const n of needs) {
-    const g = groups.find((grp) => samePoint(depotOf(grp[0], mode), depotOf(n, mode)));
+    if (!isLocated(n)) continue;
+    const g = groups.find((grp) => samePoint(depotOf(grp[0], mode)!, depotOf(n, mode)!));
     if (g) g.push(n);
     else groups.push([n]);
   }
@@ -279,12 +306,15 @@ export function planTrips(mode: TripType, args: PlanArgs): Trip[] {
 }
 
 // Plan a full day: drop-offs and pick-ups are pooled separately (kept in
-// separate cars) but share the same driver pool and availability.
+// separate cars) but share the same driver pool and availability. Needs that
+// lack an address become solo trips so they still get a driver at their time.
 export function planDay(args: PlanArgs): Trip[] {
-  const dropoffs = planTrips("dropoff", { ...args, needs: args.needs.filter((n) => n.tripType === "dropoff") });
-  const pickups = planTrips("pickup", { ...args, needs: args.needs.filter((n) => n.tripType === "pickup") });
-  // Re-run driver assignment across BOTH so a driver isn't double-booked.
-  const all = [...dropoffs, ...pickups];
+  const located = args.needs.filter(isLocated);
+  const dropoffs = planTrips("dropoff", { ...args, needs: located.filter((n) => n.tripType === "dropoff") });
+  const pickups = planTrips("pickup", { ...args, needs: located.filter((n) => n.tripType === "pickup") });
+  const solos = args.needs.filter((n) => !isLocated(n)).map(soloTrip);
+  // Re-run driver assignment across ALL trips so a driver isn't double-booked.
+  const all = [...dropoffs, ...pickups, ...solos];
   for (const t of all) t.driverId = null;
   return assignDrivers(all, args.drivers);
 }

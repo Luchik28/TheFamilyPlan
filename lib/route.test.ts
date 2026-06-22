@@ -173,4 +173,42 @@ describe("planDay", () => {
     // One driver, far-apart times -> both can use them.
     expect(trips.every((t) => t.driverId === 1)).toBe(true);
   });
+
+  it("still plans address-less needs as solo, driver-assigned trips", () => {
+    const needs: Need[] = [
+      // No coordinates yet — just a time.
+      { id: 1, kidId: 10, origin: null, dest: null, deadlineMins: 540, tripType: "dropoff" },
+      // A routable one alongside it.
+      { id: 2, kidId: 11, origin: HOME, dest: at(20), deadlineMins: 600, tripType: "dropoff" },
+    ];
+    const trips = planDay({
+      needs,
+      drivers: [{ driverId: 1, startMins: 0, endMins: 1440 }],
+      weightOf: equalWeights,
+      driverWeight: 1,
+      travel: road,
+    });
+    expect(trips).toHaveLength(2);
+    const solo = trips.find((t) => t.stops.some((s) => s.needId === 1))!;
+    expect(solo.depot).toBeNull();
+    expect(solo.driverCommittedMins).toBe(0);
+    expect(solo.departMins).toBe(540); // arrives by its deadline, no travel
+    expect(solo.driverId).toBe(1); // still reserves a driver
+  });
+
+  it("works with no home set — every need becomes a solo trip", () => {
+    const needs: Need[] = [
+      { id: 1, kidId: 10, origin: null, dest: null, deadlineMins: 540, tripType: "dropoff" },
+      { id: 2, kidId: 11, origin: null, dest: null, deadlineMins: 600, tripType: "pickup" },
+    ];
+    const trips = planDay({
+      needs,
+      drivers: [{ driverId: 1, startMins: 0, endMins: 1440 }],
+      weightOf: equalWeights,
+      driverWeight: 1,
+      travel: () => Infinity,
+    });
+    expect(trips).toHaveLength(2);
+    expect(trips.every((t) => t.driverId === 1 && t.driverCommittedMins === 0)).toBe(true);
+  });
 });

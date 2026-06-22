@@ -172,7 +172,7 @@ input:focus, select:focus, textarea:focus {
   overflow: auto;
 }
 .col-head {
-  position: sticky; top: 0; z-index: 3;
+  position: sticky; top: 0; z-index: 6;
   background: var(--card);
   border-bottom: 1px solid var(--line);
   border-left: 1px solid var(--line);
@@ -184,7 +184,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--accent); color: #fff; border-radius: 50%;
   width: 30px; height: 30px; line-height: 30px; display: inline-block;
 }
-.corner { position: sticky; top: 0; z-index: 3; background: var(--card); border-bottom: 1px solid var(--line); }
+.corner { position: sticky; top: 0; z-index: 6; background: var(--card); border-bottom: 1px solid var(--line); }
 
 .time-gutter { grid-column: 1; }
 .time-label {
