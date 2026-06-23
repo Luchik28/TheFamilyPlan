@@ -196,6 +196,24 @@ describe("planDay", () => {
     expect(solo.driverId).toBe(1); // still reserves a driver
   });
 
+  it("uses a manual travel time for an address-less solo trip", () => {
+    const needs: Need[] = [
+      { id: 1, kidId: 10, origin: null, dest: null, deadlineMins: 540, tripType: "dropoff", manualTravelMins: 15 },
+    ];
+    const trips = planDay({
+      needs,
+      drivers: [{ driverId: 1, startMins: 0, endMins: 1440 }],
+      weightOf: equalWeights,
+      driverWeight: 1,
+      travel: () => Infinity,
+    });
+    expect(trips).toHaveLength(1);
+    expect(trips[0].driverCommittedMins).toBe(30); // out and back
+    expect(trips[0].departMins).toBe(525); // leaves 15 min before
+    expect(trips[0].endMins).toBe(555);
+    expect(trips[0].driverId).toBe(1);
+  });
+
   it("works with no home set — every need becomes a solo trip", () => {
     const needs: Need[] = [
       { id: 1, kidId: 10, origin: null, dest: null, deadlineMins: 540, tripType: "dropoff" },

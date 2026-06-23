@@ -36,6 +36,9 @@ export type Need = {
   dest: LatLng | null;
   deadlineMins: number;
   tripType: TripType;
+  // A manually-entered one-way drive time (minutes). Used for address-less needs
+  // so a solo trip can still show a real duration instead of 0.
+  manualTravelMins?: number | null;
 };
 
 // A need is routable only if both ends of its trip have coordinates.
@@ -275,17 +278,19 @@ function assignDrivers(trips: Trip[], drivers: DriverAvail[]): Trip[] {
 
 // ---- public -------------------------------------------------------------- //
 
-// A need without coordinates can't be routed or pooled — give it a solo,
-// zero-travel trip at its time so it still reserves a driver.
+// A need without coordinates can't be routed or pooled — give it a solo trip at
+// its time so it still reserves a driver. If a manual one-way drive time was
+// entered, reflect it: the driver leaves `t` before, returns `t` after.
 function soloTrip(n: Need): Trip {
+  const t = n.manualTravelMins && n.manualTravelMins > 0 ? n.manualTravelMins : 0;
   return {
     tripType: n.tripType,
     depot: null,
-    stops: [{ needId: n.id, kidId: n.kidId, atMins: n.deadlineMins, rideMins: 0 }],
-    departMins: n.deadlineMins,
-    endMins: n.deadlineMins,
+    stops: [{ needId: n.id, kidId: n.kidId, atMins: n.deadlineMins, rideMins: t }],
+    departMins: n.deadlineMins - t,
+    endMins: n.deadlineMins + t,
     driverId: null,
-    driverCommittedMins: 0,
+    driverCommittedMins: 2 * t,
     weightedCost: 0,
   };
 }

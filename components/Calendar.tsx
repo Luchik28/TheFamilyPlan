@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LocationInput from "./LocationInput";
 import { fetchTableOracle, planDay, type LatLng, type Need, type TravelOracle, type Trip } from "@/lib/route";
 
@@ -307,22 +307,32 @@ export default function Calendar({ code, name }: { code: string; name: string })
         group.sort((a, b) => minutesOf(a.start_time) - minutesOf(b.start_time));
         for (let i = 0; i < group.length; i++) {
           const it = group[i];
-          // Walk backwards to find the nearest prior location with coordinates
-          let oLat = home.lat;
-          let oLng = home.lng;
-          let originLabel = home.address || "Home";
-          for (let j = i - 1; j >= 0; j--) {
-            if (group[j].lat && group[j].lng) {
-              oLat = group[j].lat; oLng = group[j].lng;
-              originLabel = group[j].location || "Previous stop";
-              break;
+          if (!it.lat || !it.lng) continue;
+          if (it.trip_type === "pickup") {
+            // Drive happens AFTER the pickup: from here to home.
+            if (home.lat && home.lng) {
+              newOrigins[it.id] = home.address || "Home";
+              if (it.travel_mins === null) {
+                routes.push({ id: it.id, oLat: it.lat, oLng: it.lng, dLat: home.lat, dLng: home.lng });
+              }
             }
-          }
-          if (it.lat && it.lng && oLat && oLng) {
-            newOrigins[it.id] = originLabel;
-            // Only hit OSRM if no saved travel time
-            if (it.travel_mins === null) {
-              routes.push({ id: it.id, oLat, oLng, dLat: it.lat, dLng: it.lng });
+          } else {
+            // Drive happens BEFORE the drop-off: from the previous stop to here.
+            let oLat = home.lat;
+            let oLng = home.lng;
+            let originLabel = home.address || "Home";
+            for (let j = i - 1; j >= 0; j--) {
+              if (group[j].lat && group[j].lng) {
+                oLat = group[j].lat; oLng = group[j].lng;
+                originLabel = group[j].location || "Previous stop";
+                break;
+              }
+            }
+            if (oLat && oLng) {
+              newOrigins[it.id] = originLabel;
+              if (it.travel_mins === null) {
+                routes.push({ id: it.id, oLat, oLng, dLat: it.lat, dLng: it.lng });
+              }
             }
           }
         }
@@ -396,6 +406,7 @@ export default function Calendar({ code, name }: { code: string; name: string })
             origin: it.trip_type === "pickup" ? loc : origin,
             dest: it.trip_type === "pickup" ? homePt : loc,
             deadlineMins: minutesOf(it.start_time),
+            manualTravelMins: it.travel_mins,
           });
         }
       }
@@ -973,29 +984,47 @@ export default function Calendar({ code, name }: { code: string; name: string })
                   if (!travelMins) return null;
                   const needTop = topFor(it.start_time);
                   const blockH = (travelMins / 60) * HOUR_H;
-                  const blockTop = Math.max(0, needTop - blockH);
-                  const clippedH = needTop - blockTop;
-                  const leaveMins = minutesOf(it.start_time) - travelMins;
-                  const leaveStr = `${String(Math.floor(leaveMins / 60)).padStart(2, "0")}:${String(leaveMins % 60).padStart(2, "0")}`;
-                  const origin = travelOrigins[it.id];
+                  const gridH = (DAY_END - DAY_START + 1) * HOUR_H;
+                  const label = travelOrigins[it.id];
+                  const isPickup = it.trip_type === "pickup";
+
+                  // Drop-off: travel BEFORE the need (drive out, arrive by the time).
+                  // Pick-up: travel AFTER the need (get picked up, then drive home).
+                  let blockTop: number, clippedH: number, markerTop: number, markerMins: number, notClipped: boolean, verb: string;
+                  if (isPickup) {
+                    blockTop = needTop;
+                    const bottom = Math.min(needTop + blockH, gridH);
+                    clippedH = bottom - blockTop;
+                    markerTop = bottom;
+                    markerMins = minutesOf(it.start_time) + travelMins;
+                    notClipped = needTop + blockH <= gridH + 0.5;
+                    verb = "arrive";
+                  } else {
+                    blockTop = Math.max(0, needTop - blockH);
+                    clippedH = needTop - blockTop;
+                    markerTop = blockTop;
+                    markerMins = minutesOf(it.start_time) - travelMins;
+                    notClipped = needTop - blockH >= -0.5;
+                    verb = "leave";
+                  }
+
                   return (
-                    <>
+                    <Fragment key={`tr-${it.id}`}>
                       <div
-                        key={`tr-${it.id}`}
                         className={"travel-block" + dim(it)}
                         style={{ top: `${blockTop}px`, height: `${clippedH}px`, background: `${it.person_color}28`, borderColor: it.person_color }}
                       >
                         {clippedH >= 18 && <span className="travel-label">{travelMins} min</span>}
                       </div>
-                      {blockTop === needTop - blockH && origin && (
-                        <div key={`to-${it.id}`} className={"travel-origin" + dim(it)} style={{ top: `${blockTop}px` }}>
+                      {notClipped && label && (
+                        <div className={"travel-origin" + dim(it)} style={{ top: `${markerTop}px` }}>
                           <span className="need-dot" style={{ background: "transparent", border: `2px solid ${it.person_color}` }} />
                           <span className="need-label" style={{ borderColor: it.person_color, opacity: 0.75 }}>
-                            <strong>{fmtTime(leaveStr)}</strong> leave · {origin}
+                            <strong>{fmtTime(minsToTime(markerMins))}</strong> {verb} · {label}
                           </span>
                         </div>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
 
